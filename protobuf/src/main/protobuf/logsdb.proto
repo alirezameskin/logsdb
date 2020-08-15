@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package logsdb.protos;
+
+service Pusher {
+  rpc Push(stream LogRecord) returns (stream PushResponse) {}
+}
+
+service Query {
+  rpc Query(QueryParams) returns (stream LogRecord) {}
+}
+
+message LogRecord {
+  uint64 time = 1;
+  string message = 2;
+  string id = 3;
+}
+
+message PushResponse {
+  string id = 1;
+}
+
+message QueryParams {
+  uint64 from = 1;
+  uint64 to = 2;
+  int32 limit = 3;
+  string after = 4;
+}
+
