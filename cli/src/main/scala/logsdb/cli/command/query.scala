@@ -47,7 +47,14 @@ object QueryCommand {
         logs <- client.query(params, new Metadata())
       } yield logs
 
-      result.map(_.message).through(fs2.io.stdoutLines[IO, String](blocker)).compile.drain.as(ExitCode.Success)
+      val EOL = java.lang.System.lineSeparator()
+
+      result
+        .map(l => s"${l.message}${EOL}")
+        .through(fs2.io.stdoutLines[IO, String](blocker))
+        .compile
+        .drain
+        .as(ExitCode.Success)
     }
 
   private def makeChannel(host: String, port: Int): fs2.Stream[IO, ManagedChannel] = {
