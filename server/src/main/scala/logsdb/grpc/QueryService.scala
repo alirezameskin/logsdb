@@ -9,12 +9,17 @@ import logsdb.storage.RocksDB
 class QueryService(R: RocksDB[IO]) extends QueryFs2Grpc[IO, Metadata] {
 
   override def query(request: QueryParams, ctx: Metadata): fs2.Stream[IO, LogRecord] = {
-    val start = Option(request.from).getOrElse(0L)
+    val to    = Option(request.to)
+    val from  = Option(request.from).getOrElse(0L)
     val limit = Option(request.limit).getOrElse(100)
 
     for {
-      itr    <- fs2.Stream.eval(R.startsWith[LogId, LogRecord](LogId(start)))
-      stream <- fs2.Stream.fromIterator[IO](itr).take(limit)
+      itr <- fs2.Stream.eval(R.startsWith[LogId, LogRecord](LogId(from)))
+      stream <- fs2.Stream
+        .fromIterator[IO](itr)
+        .takeWhile(r => to.forall(_ >= r.time))
+        .take(limit)
+
     } yield stream
   }
 

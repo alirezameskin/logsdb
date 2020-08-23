@@ -1,16 +1,17 @@
 package logsdb.cli.command
 
-import java.time.Instant
 import java.time.format.DateTimeFormatter
+import java.time.{Instant, LocalDateTime}
+import java.util.TimeZone
 
 import cats.effect.{Blocker, ContextShift, ExitCode, IO}
 import cats.implicits._
 import com.monovore.decline.Opts
 import io.grpc.{ManagedChannel, ManagedChannelBuilder, Metadata}
-import logsdb.protos.{QueryFs2Grpc, QueryParams}
+import logsdb.protos.{LogRecord, QueryFs2Grpc, QueryParams}
 import org.lyranthe.fs2_grpc.java_runtime.syntax.ManagedChannelBuilderOps
 
-case class QueryOptions(host: String, port: Int, limit: Int, from: Option[Long], to: Long)
+case class QueryOptions(host: String, port: Int, limit: Int, from: Option[Long], to: Long, messageOnly: Boolean = false)
 
 object QueryCommand {
   private val hostOpts: Opts[String] =
@@ -34,8 +35,11 @@ object QueryCommand {
       .map(d => Instant.from(DateTimeFormatter.ISO_INSTANT.parse(d)).toEpochMilli)
       .orElse(Opts(Instant.now().toEpochMilli))
 
+  private val msgOnlyOpts: Opts[Boolean] =
+    Opts.flag("message-only", "Message only output.", short = "m").orFalse
+
   def options: Opts[QueryOptions] = Opts.subcommand("query", "Query") {
-    (hostOpts, portOpts, limitOpts, fromOpts, toOpts).mapN(QueryOptions)
+    (hostOpts, portOpts, limitOpts, fromOpts, toOpts, msgOnlyOpts).mapN(QueryOptions)
   }
 
   def execute(options: QueryOptions)(implicit CS: ContextShift[IO]): IO[ExitCode] =
@@ -47,10 +51,8 @@ object QueryCommand {
         logs <- client.query(params, new Metadata())
       } yield logs
 
-      val EOL = java.lang.System.lineSeparator()
-
       result
-        .map(l => s"${l.message}${EOL}")
+        .map(l => mkString(l, options.messageOnly))
         .through(fs2.io.stdoutLines[IO, String](blocker))
         .compile
         .drain
@@ -63,5 +65,18 @@ object QueryCommand {
       .usePlaintext()
 
     new ManagedChannelBuilderOps(builder).stream[IO]
+  }
+
+  private def mkString(record: LogRecord, messageOnly: Boolean): String = {
+    val EOL = java.lang.System.lineSeparator()
+    if (messageOnly) {
+      s"${record.message}${EOL}"
+    } else {
+      val time = LocalDateTime
+        .ofInstant(Instant.ofEpochMilli(record.time), TimeZone.getDefault.toZoneId)
+        .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+
+      s"${time} ${record.message}${EOL}"
+    }
   }
 }
