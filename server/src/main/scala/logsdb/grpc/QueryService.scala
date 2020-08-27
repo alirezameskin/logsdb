@@ -2,8 +2,7 @@ package logsdb.grpc
 
 import cats.effect.{ContextShift, IO}
 import io.grpc._
-import logsdb.LogId
-import logsdb.protos.{LogRecord, QueryFs2Grpc, QueryParams}
+import logsdb.protos.{LogRecord, QueryFs2Grpc, QueryParams, RecordId}
 import logsdb.storage.RocksDB
 
 class QueryService(R: RocksDB[IO]) extends QueryFs2Grpc[IO, Metadata] {
@@ -14,7 +13,7 @@ class QueryService(R: RocksDB[IO]) extends QueryFs2Grpc[IO, Metadata] {
     val limit = Option(request.limit).getOrElse(100)
 
     for {
-      itr <- fs2.Stream.eval(R.startsWith[LogId, LogRecord](LogId(from)))
+      itr <- fs2.Stream.eval(R.startsWith[RecordId, LogRecord](RecordId(from)))
       stream <- fs2.Stream
         .fromIterator[IO](itr)
         .takeWhile(r => to.forall(_ >= r.time))

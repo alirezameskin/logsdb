@@ -13,7 +13,12 @@ service Query {
 message LogRecord {
   uint64 time = 1;
   string message = 2;
-  string id = 3;
+  RecordId id = 3;
+}
+
+message RecordId {
+  uint64 time = 1;
+  uint64 nuance = 2;
 }
 
 message PushResponse {

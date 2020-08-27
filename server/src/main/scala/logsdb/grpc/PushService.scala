@@ -4,7 +4,6 @@ import cats.effect.concurrent.Ref
 import cats.effect.{ContextShift, IO}
 import fs2._
 import io.grpc._
-import logsdb.LogId
 import logsdb.protos._
 import logsdb.storage.RocksDB
 
@@ -14,8 +13,9 @@ class PushService(R: RocksDB[IO], N: Ref[IO, Long]) extends PusherFs2Grpc[IO, Me
     request.evalMap { req =>
       for {
         nuance <- N.getAndUpdate(x => x + 1)
-        id = LogId(req.time, Some(nuance))
-        _ <- R.put(id, req)
+        id  = RecordId(req.time, nuance)
+        rec = req.copy(id = Some(id))
+        _ <- R.put(id, rec)
       } yield PushResponse()
     }
 
