@@ -6,6 +6,7 @@ import fs2._
 import io.grpc._
 import logsdb.protos._
 import logsdb.storage.RocksDB
+import logsdb.implicits._
 
 class PushService(R: RocksDB[IO], N: Ref[IO, Long]) extends PusherFs2Grpc[IO, Metadata] {
 

@@ -1,10 +1,21 @@
 package logsdb.storage
 
+import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import cats.{Applicative, MonadError}
+import fs2.{Pull, RaiseThrowable, Stream}
+import org.rocksdb.RocksIterator
 import org.{rocksdb => jrocks}
+import logsdb.implicits._
 
-class RocksDBImpl[F[_]](db: jrocks.RocksDB)(implicit M: MonadError[F, Throwable]) extends RocksDB[F] {
+import scala.concurrent.duration.FiniteDuration
+
+class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](db: jrocks.RocksDB, blocker: Blocker)(
+  implicit M: MonadError[F, Throwable]
+) extends RocksDB[F] {
+
+  type Key   = Array[Byte]
+  type Value = Array[Byte]
 
   def get(key: Array[Byte]): F[Option[Array[Byte]]] = Applicative[F].pure(Option(db.get(key)))
 
@@ -28,38 +39,52 @@ class RocksDBImpl[F[_]](db: jrocks.RocksDB)(implicit M: MonadError[F, Throwable]
       _     <- this.put(key, value)
     } yield ()
 
-  def startsWith[K, V](prefix: K)(implicit KE: Encoder[K], KD: Decoder[K], VD: Decoder[V]): F[Iterator[V]] =
-    for {
-      bytes <- M.fromEither(KE.encode(prefix))
-      itr   <- db.newIterator().pure[F]
-      _ = itr.seek(bytes)
-    } yield {
-      val iterator = new Iterator[Option[V]] {
-        override def hasNext: Boolean = itr.isValid
+  def startsWith[K, V](prefix: K)(implicit KE: Encoder[K], KD: Decoder[K], VD: Decoder[V]): Stream[F, V] = {
+    val stream = for {
+      iterator <- Stream.resource(makeIterator)
+      bytes    <- Stream.fromEither(KE.encode(prefix))
+      _ = iterator.seek(bytes)
+      stream <- iterator.valuesStream[F]
+    } yield stream
 
-        override def next(): Option[V] =
-          (for {
-            _     <- KD.decode(itr.key())
-            value <- VD.decode(itr.value())
-            _ = itr.next()
-          } yield value).toOption
-      }
+    stream.map(v => VD.decode(v)).map(_.toOption).filter(_.isDefined).map(_.get)
+  }
 
-      iterator.filter(_.isDefined).map(_.get)
+  override def tail(chunkSize: Int, pullDelay: FiniteDuration, lastOffset: Option[Key]): Pull[F, Value, Option[Key]] = {
+    val stream = lastOffset match {
+      case Some(offset) =>
+        for {
+          iterator <- Stream.resource(makeIterator)
+          _ = iterator.seek(offset)
+          _ = iterator.next()
+          str <- iterator.stream[F]
+        } yield str
+      case None =>
+        for {
+          iterator <- Stream.resource(makeIterator)
+          _ = iterator.seekToLast()
+          str <- iterator.stream[F]
+        } yield str
     }
 
-  override def endsWith[K, V](key: K)(implicit K: Encoder[K], V: Decoder[V]): F[Iterator[V]] =
-    for {
-      bytes <- M.fromEither(K.encode(key))
-      itr   <- db.newIterator().pure[F]
-      _ = itr.seekForPrev(bytes)
-    } yield new Iterator[V] {
-      override def hasNext: Boolean = itr.isValid
-
-      override def next(): V = {
-        val value = V.decode(itr.value()).toOption.get
-        itr.prev()
-        value
-      }
+    pullStream(stream, chunkSize, lastOffset).flatMap { offset =>
+      Pull.eval(Timer[F].sleep(pullDelay)) >> tail(chunkSize, pullDelay, offset)
     }
+  }
+
+  private def pullStream(stream: Stream[F, (Key, Value)], chunkSize: Int, lastOffset: Option[Key]): Pull[F, Value, Option[Key]] =
+    stream.pull.unconsN(chunkSize, true).flatMap {
+
+      case Some((chunk, next)) =>
+        Pull.output(chunk.map(_._2)) >> pullStream(next, chunkSize, chunk.last.map(_._1).orElse(lastOffset))
+
+      case None =>
+        Pull.pure(lastOffset)
+    }
+
+  private def makeIterator: Resource[F, RocksIterator] = {
+    val acquire: F[RocksIterator]         = Sync[F].delay(db.newIterator())
+    val release: RocksIterator => F[Unit] = i => blocker.delay(i.close())
+    Resource.make(acquire)(release)
+  }
 }

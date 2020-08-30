@@ -8,6 +8,7 @@ service Pusher {
 
 service Query {
   rpc Query(QueryParams) returns (stream LogRecord) {}
+  rpc Tail(QueryParams) returns (stream LogRecord) {}
 }
 
 message LogRecord {
