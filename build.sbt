@@ -9,7 +9,8 @@ lazy val cli =
       libraryDependencies ++= List(
         "io.grpc"      % "grpc-netty"      % "1.31.0",
         "co.fs2"       %% "fs2-io"         % "2.4.0",
-        "com.monovore" %% "decline-effect" % "1.0.0"
+        "com.monovore" %% "decline-effect" % "1.0.0",
+        "com.lihaoyi"  %% "fansi"          % "0.2.7"
       ),
       assemblyMergeStrategy in assembly := {
         case "META-INF/MANIFEST.MF" => MergeStrategy.discard

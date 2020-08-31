@@ -2,22 +2,17 @@ package logsdb.cli.command
 
 import java.time.Instant
 
-import cats.effect.{Blocker, ContextShift, ExitCode, IO}
+import cats.effect.{Blocker, ContextShift, IO}
 import cats.implicits._
 import com.monovore.decline.Opts
 import io.grpc._
 import fs2._
 import logsdb.protos._
-import org.lyranthe.fs2_grpc.java_runtime.syntax.ManagedChannelBuilderOps
 
 case class PushOptions(host: String, port: Int, text: Boolean = true)
 
-object PushCommand {
-  private val hostOpts: Opts[String] =
-    Opts.option[String]("host", "Host", short = "h").orElse(Opts("127.0.0.1"))
-
-  private val portOpts: Opts[Int] =
-    Opts.option[Int]("port", "Port", short = "p").orElse(Opts(9092))
+object PushCommand extends AbstractCommand {
+  override type OPTIONS = PushOptions
 
   private val textOpts: Opts[Boolean] =
     Opts.flag("text", "Text Input.", short = "t").orTrue
@@ -26,25 +21,17 @@ object PushCommand {
     (hostOpts, portOpts, textOpts).mapN(PushOptions)
   }
 
-  def execute(options: PushOptions)(implicit CS: ContextShift[IO]): IO[ExitCode] =
+  def execute(options: PushOptions)(implicit CS: ContextShift[IO]): IO[Unit] =
     Blocker[IO].use { blocker =>
       val result = for {
         channel <- makeChannel(options.host, options.port)
-        pusher = PusherFs2Grpc.stub[IO](channel)
+        pusher = PusherFs2Grpc.stub[IO](channel, errorAdapter = ea)
         rows   = stdin(blocker).map(s => LogRecord(Instant.now().toEpochMilli, s))
         res <- pusher.push(rows, new Metadata())
       } yield res
 
-      result.compile.drain.as(ExitCode.Success)
+      result.compile.drain
     }
-
-  private def makeChannel(host: String, port: Int): Stream[IO, ManagedChannel] = {
-    val builder = ManagedChannelBuilder
-      .forAddress(host, port)
-      .usePlaintext()
-
-    new ManagedChannelBuilderOps(builder).stream[IO]
-  }
 
   private def stdin(blocker: Blocker)(implicit CS: ContextShift[IO]): fs2.Stream[IO, String] =
     fs2.io
