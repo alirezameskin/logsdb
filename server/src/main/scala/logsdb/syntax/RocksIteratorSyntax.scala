@@ -20,7 +20,7 @@ final class RocksIteratorOps(val rocksIterator: RocksIterator) extends AnyVal {
           val key   = rocksIterator.key()
           val value = rocksIterator.value()
 
-          iterator.next()
+          rocksIterator.next()
 
           (key, value)
         }

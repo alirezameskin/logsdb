@@ -9,7 +9,15 @@ import com.monovore.decline.Opts
 import io.grpc.Metadata
 import logsdb.protos.{QueryFs2Grpc, QueryParams}
 
-case class QueryOptions(host: String, port: Int, limit: Int, from: Option[Long], to: Long, messageOnly: Boolean = false)
+case class QueryOptions(
+  host: String,
+  port: Int,
+  collection: String,
+  limit: Int,
+  from: Option[Long],
+  to: Long,
+  messageOnly: Boolean = false
+)
 
 object QueryCommand extends AbstractCommand {
   override type OPTIONS = QueryOptions
@@ -33,7 +41,7 @@ object QueryCommand extends AbstractCommand {
     Opts.flag("message-only", "Message only output.", short = "m").orFalse
 
   def options: Opts[QueryOptions] = Opts.subcommand("query", "Query") {
-    (hostOpts, portOpts, limitOpts, fromOpts, toOpts, msgOnlyOpts).mapN(QueryOptions)
+    (hostOpts, portOpts, collectionOpts, limitOpts, fromOpts, toOpts, msgOnlyOpts).mapN(QueryOptions)
   }
 
   def execute(options: QueryOptions)(implicit CS: ContextShift[IO]): IO[Unit] =
@@ -41,7 +49,7 @@ object QueryCommand extends AbstractCommand {
       val result = for {
         channel <- makeChannel(options.host, options.port)
         client = QueryFs2Grpc.stub[IO](channel, errorAdapter = ea)
-        params = QueryParams(options.from.getOrElse(0L), options.to, options.limit)
+        params = QueryParams(options.collection, options.from.getOrElse(0L), options.to, options.limit)
         logs <- client.query(params, new Metadata())
       } yield logs
 

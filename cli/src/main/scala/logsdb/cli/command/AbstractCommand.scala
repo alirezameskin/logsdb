@@ -22,6 +22,9 @@ abstract class AbstractCommand extends Command {
   private[command] val portOpts: Opts[Int] =
     Opts.option[Int]("port", "Port", short = "p").orElse(Opts(9092))
 
+  private[command] val collectionOpts: Opts[String] =
+    Opts.option[String]("collection", "Collection name", short = "c").orElse(Opts("default"))
+
   private[command] def makeChannel(host: String, port: Int): Stream[IO, ManagedChannel] = {
     val builder = ManagedChannelBuilder
       .forAddress(host, port)

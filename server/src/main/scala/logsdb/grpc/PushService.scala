@@ -4,19 +4,25 @@ import cats.effect.concurrent.Ref
 import cats.effect.{ContextShift, IO}
 import fs2._
 import io.grpc._
+import logsdb.implicits._
 import logsdb.protos._
 import logsdb.storage.RocksDB
-import logsdb.implicits._
 
 class PushService(R: RocksDB[IO], N: Ref[IO, Long]) extends PusherFs2Grpc[IO, Metadata] {
 
-  override def push(request: Stream[IO, LogRecord], ctx: Metadata): Stream[IO, PushResponse] =
+  override def push(request: Stream[IO, PushRequest], ctx: Metadata): Stream[IO, PushResponse] =
     request.evalMap { req =>
       for {
         nuance <- N.getAndUpdate(x => x + 1)
-        id  = RecordId(req.time, nuance)
-        rec = req.copy(id = Some(id))
-        _ <- R.put(id, rec)
+        _ <- req.record match {
+          case Some(record) =>
+            val collection = Option(req.collection).filter(_.nonEmpty).getOrElse("default")
+            val id         = RecordId(record.time, nuance)
+            R.put(collection, id, record.copy(id = Some(RecordId(record.time, nuance))))
+
+          case None =>
+            IO.pure()
+        }
       } yield PushResponse()
     }
 

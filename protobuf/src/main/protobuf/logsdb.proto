@@ -3,12 +3,17 @@ syntax = "proto3";
 package logsdb.protos;
 
 service Pusher {
-  rpc Push(stream LogRecord) returns (stream PushResponse) {}
+  rpc Push(stream PushRequest) returns (stream PushResponse) {}
 }
 
 service Query {
   rpc Query(QueryParams) returns (stream LogRecord) {}
   rpc Tail(QueryParams) returns (stream LogRecord) {}
+}
+
+message PushRequest {
+  string collection = 1;
+  LogRecord record = 2;
 }
 
 message LogRecord {
@@ -27,9 +32,10 @@ message PushResponse {
 }
 
 message QueryParams {
-  uint64 from = 1;
-  uint64 to = 2;
-  int32 limit = 3;
-  string after = 4;
+  string collection = 1;
+  uint64 from = 2;
+  uint64 to = 3;
+  int32 limit = 4;
+  string after = 5;
 }
 

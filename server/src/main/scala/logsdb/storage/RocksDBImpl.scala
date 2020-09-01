@@ -1,47 +1,56 @@
 package logsdb.storage
 
+import cats.MonadError
+import cats.effect.concurrent.{Ref, Semaphore}
 import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
-import cats.{Applicative, MonadError}
 import fs2.{Pull, RaiseThrowable, Stream}
-import org.rocksdb.RocksIterator
-import org.{rocksdb => jrocks}
 import logsdb.implicits._
+import org.rocksdb.{ColumnFamilyDescriptor, ColumnFamilyHandle, RocksIterator}
+import org.{rocksdb => jrocks}
 
 import scala.concurrent.duration.FiniteDuration
 
-class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](db: jrocks.RocksDB, blocker: Blocker)(
+class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
+  db: jrocks.RocksDB,
+  columnFamilies: Ref[F, Map[String, ColumnFamilyHandle]],
+  blocker: Blocker,
+  semaphore: Semaphore[F]
+)(
   implicit M: MonadError[F, Throwable]
 ) extends RocksDB[F] {
 
   type Key   = Array[Byte]
   type Value = Array[Byte]
 
-  def get(key: Array[Byte]): F[Option[Array[Byte]]] = Applicative[F].pure(Option(db.get(key)))
-
-  def put(key: Array[Byte], value: Array[Byte]): F[Unit] = db.put(key, value).pure[F]
-
-  private def encodeValue[V](value: Option[Array[Byte]])(implicit D: Decoder[V]): Option[V] = value match {
-    case Some(v) => D.decode(v).toOption
-    case None    => None
-  }
-
-  def get[K, V](key: K)(implicit K: Encoder[K], V: Decoder[V]): F[Option[V]] =
+  def get(collection: String, key: Array[Byte]): F[Option[Array[Byte]]] =
     for {
-      bytes <- M.fromEither(K.encode(key))
-      res   <- this.get(bytes).map(b => encodeValue[V](b))
-    } yield res
+      handle <- getColumnFamilyHandle(collection)
+      record <- Option(db.get(handle, key)).pure[F]
+    } yield record
 
-  def put[K, V](key: K, value: V)(implicit K: Encoder[K], V: Encoder[V]): F[Unit] =
+  def put(collection: String, key: Array[Byte], value: Array[Byte]): F[Unit] =
     for {
-      key   <- M.fromEither(K.encode(key))
-      value <- M.fromEither(V.encode(value))
-      _     <- this.put(key, value)
+      handle <- getColumnFamilyHandle(collection)
+      _      <- db.put(handle, key, value).pure[F]
     } yield ()
 
-  def startsWith[K, V](prefix: K)(implicit KE: Encoder[K], KD: Decoder[K], VD: Decoder[V]): Stream[F, V] = {
+  def get[K, V](collection: String, key: K)(implicit K: Encoder[K], V: Decoder[V]): F[Option[V]] =
+    for {
+      bytes <- M.fromEither(K.encode(key))
+      res   <- this.get(collection, bytes).map(b => encodeValue[V](b))
+    } yield res
+
+  def put[K, V](collection: String, key: K, value: V)(implicit KE: Encoder[K], VE: Encoder[V]): F[Unit] =
+    for {
+      key   <- M.fromEither(KE.encode(key))
+      value <- M.fromEither(VE.encode(value))
+      _     <- this.put(collection, key, value)
+    } yield ()
+
+  def startsWith[K, V](collection: String, prefix: K)(implicit KE: Encoder[K], KD: Decoder[K], VD: Decoder[V]): Stream[F, V] = {
     val stream = for {
-      iterator <- Stream.resource(makeIterator)
+      iterator <- Stream.resource(makeIterator(collection))
       bytes    <- Stream.fromEither(KE.encode(prefix))
       _ = iterator.seek(bytes)
       stream <- iterator.valuesStream[F]
@@ -50,25 +59,30 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](db: jrocks.Ro
     stream.map(v => VD.decode(v)).map(_.toOption).filter(_.isDefined).map(_.get)
   }
 
-  override def tail(chunkSize: Int, pullDelay: FiniteDuration, lastOffset: Option[Key]): Pull[F, Value, Option[Key]] = {
+  def tail(
+    collection: String,
+    chunkSize: Int,
+    pullDelay: FiniteDuration,
+    lastOffset: Option[Key]
+  ): Pull[F, Value, Option[Key]] = {
     val stream = lastOffset match {
       case Some(offset) =>
         for {
-          iterator <- Stream.resource(makeIterator)
+          iterator <- Stream.resource(makeIterator(collection))
           _ = iterator.seek(offset)
           _ = iterator.next()
           str <- iterator.stream[F]
         } yield str
       case None =>
         for {
-          iterator <- Stream.resource(makeIterator)
+          iterator <- Stream.resource(makeIterator(collection))
           _ = iterator.seekToLast()
           str <- iterator.stream[F]
         } yield str
     }
 
     pullStream(stream, chunkSize, lastOffset).flatMap { offset =>
-      Pull.eval(Timer[F].sleep(pullDelay)) >> tail(chunkSize, pullDelay, offset)
+      Pull.eval(Timer[F].sleep(pullDelay)) >> tail(collection, chunkSize, pullDelay, offset)
     }
   }
 
@@ -86,5 +100,40 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](db: jrocks.Ro
     val acquire: F[RocksIterator]         = Sync[F].delay(db.newIterator())
     val release: RocksIterator => F[Unit] = i => blocker.delay(i.close())
     Resource.make(acquire)(release)
+  }
+
+  private def makeIterator(columnFamily: String): Resource[F, RocksIterator] =
+    for {
+      handle   <- Resource.liftF(getColumnFamilyHandle(columnFamily))
+      iterator <- Resource.make(Sync[F].delay(db.newIterator(handle)))(i => blocker.delay(i.close()))
+    } yield iterator
+
+  private def getColumnFamilyHandle(name: String): F[ColumnFamilyHandle] =
+    for {
+      families <- columnFamilies.get
+      family   <- families.get(name).pure[F]
+      handle <- family match {
+        case Some(handle) => handle.pure[F]
+        case None         => create(name)
+      }
+
+    } yield handle
+
+  private def create(name: String): F[ColumnFamilyHandle] =
+    for {
+      _        <- semaphore.acquire
+      families <- columnFamilies.get
+      changes <- families.get(name) match {
+        case Some(_) => families.pure[F]
+        case None    => (families + (name -> db.createColumnFamily(new ColumnFamilyDescriptor(name.getBytes)))).pure[F]
+      }
+      families <- columnFamilies.updateAndGet(_ => changes)
+      handle   <- families(name).pure[F]
+
+    } yield handle
+
+  private def encodeValue[V](value: Option[Array[Byte]])(implicit D: Decoder[V]): Option[V] = value match {
+    case Some(v) => D.decode(v).toOption
+    case None    => None
   }
 }
