@@ -10,7 +10,9 @@ lazy val cli =
         "io.grpc"      % "grpc-netty"      % "1.31.0",
         "co.fs2"       %% "fs2-io"         % "2.4.0",
         "com.monovore" %% "decline-effect" % "1.0.0",
-        "com.lihaoyi"  %% "fansi"          % "0.2.7"
+        "com.lihaoyi"  %% "fansi"          % "0.2.7",
+        "io.circe"     %% "circe-core"     % "0.12.3",
+        "io.circe"     %% "circe-parser"   % "0.12.3"
       ),
       assemblyMergeStrategy in assembly := {
         case "META-INF/MANIFEST.MF" => MergeStrategy.discard
@@ -24,7 +26,8 @@ lazy val protobuf =
     .in(file("protobuf"))
     .enablePlugins(Fs2Grpc)
     .settings(
-      scalapbCodeGeneratorOptions += CodeGeneratorOption.FlatPackage
+      scalapbCodeGeneratorOptions += CodeGeneratorOption.FlatPackage,
+      libraryDependencies += "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
     )
 
 lazy val server =

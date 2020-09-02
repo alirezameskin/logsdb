@@ -1,4 +1,5 @@
 syntax = "proto3";
+import "google/protobuf/struct.proto";
 
 package logsdb.protos;
 
@@ -20,6 +21,7 @@ message LogRecord {
   uint64 time = 1;
   string message = 2;
   RecordId id = 3;
+  google.protobuf.Struct attributes = 4;
 }
 
 message RecordId {

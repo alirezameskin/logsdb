@@ -5,37 +5,54 @@ import java.time.Instant
 import cats.effect.{Blocker, ContextShift, IO}
 import cats.implicits._
 import com.monovore.decline.Opts
+import io.circe.parser.parse
 import io.grpc._
 import fs2._
 import logsdb.protos._
+import logsdb.cli.implicits._
 
-case class PushOptions(host: String, port: Int, collection: String, text: Boolean = true)
+case class PushOptions(host: String, port: Int, collection: String, isJson: Boolean = false)
 
 object PushCommand extends AbstractCommand {
   override type OPTIONS = PushOptions
 
-  private val textOpts: Opts[Boolean] =
-    Opts.flag("text", "Text Input.", short = "t").orTrue
+  private val jsonOpts: Opts[Boolean] =
+    Opts.flag("json", "Json Input.", short = "j").orFalse
 
   def options: Opts[PushOptions] = Opts.subcommand("push", "Push logs to server") {
-    (hostOpts, portOpts, collectionOpts, textOpts).mapN(PushOptions)
+    (hostOpts, portOpts, collectionOpts, jsonOpts).mapN(PushOptions)
   }
 
   def execute(options: PushOptions)(implicit CS: ContextShift[IO]): IO[Unit] =
     Blocker[IO].use { blocker =>
+      val recordConverter  = toRecord(options.isJson)
+      val requestConverter = toPushRequest(options.collection)
+      val stream           = stdin(blocker).through(recordConverter).through(requestConverter)
+
       val result = for {
         channel <- makeChannel(options.host, options.port)
         pusher = PusherFs2Grpc.stub[IO](channel, errorAdapter = ea)
-        rows = stdin(blocker).map { s =>
-          PushRequest(options.collection, Some(LogRecord(Instant.now().toEpochMilli, s)))
-        }
-        res <- pusher.push(rows, new Metadata())
+        res <- pusher.push(stream, new Metadata())
       } yield res
 
       result.compile.drain
     }
 
-  private def stdin(blocker: Blocker)(implicit CS: ContextShift[IO]): fs2.Stream[IO, String] =
+  def toRecord(isJson: Boolean): Pipe[IO, String, LogRecord] =
+    in =>
+      if (isJson) {
+        in.evalMap(line => parseJson(line))
+      } else {
+        in.map(line => LogRecord(Instant.now().toEpochMilli, line))
+      }
+
+  def parseJson(content: String): IO[LogRecord] =
+    IO.fromEither(parse(content).flatMap(_.as[LogRecord]))
+
+  def toPushRequest(collection: String): Pipe[IO, LogRecord, PushRequest] =
+    in => in.map(record => PushRequest(collection, Some(record)))
+
+  def stdin(blocker: Blocker)(implicit CS: ContextShift[IO]): fs2.Stream[IO, String] =
     fs2.io
       .stdin[IO](10, blocker)
       .through(text.utf8Decode)
