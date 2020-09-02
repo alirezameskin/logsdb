@@ -1,12 +1,5 @@
-package logsdb
-package storage
+package logsdb.storage
 
 trait Encoder[A] extends Serializable {
   def encode(a: A): Either[Throwable, Array[Byte]]
-}
-
-object Encoder {
-  implicit val stringEncoder = new Encoder[String] {
-    override def encode(a: String): Either[Throwable, Array[Byte]] = Right(a.getBytes)
-  }
 }

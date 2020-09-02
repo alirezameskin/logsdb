@@ -96,12 +96,6 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
         Pull.pure(lastOffset)
     }
 
-  private def makeIterator: Resource[F, RocksIterator] = {
-    val acquire: F[RocksIterator]         = Sync[F].delay(db.newIterator())
-    val release: RocksIterator => F[Unit] = i => blocker.delay(i.close())
-    Resource.make(acquire)(release)
-  }
-
   private def makeIterator(columnFamily: String): Resource[F, RocksIterator] =
     for {
       handle   <- Resource.liftF(getColumnFamilyHandle(columnFamily))
@@ -114,12 +108,12 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
       family   <- families.get(name).pure[F]
       handle <- family match {
         case Some(handle) => handle.pure[F]
-        case None         => create(name)
+        case None         => createColumnFamily(name)
       }
 
     } yield handle
 
-  private def create(name: String): F[ColumnFamilyHandle] =
+  private def createColumnFamily(name: String): F[ColumnFamilyHandle] =
     for {
       _        <- semaphore.acquire
       families <- columnFamilies.get
