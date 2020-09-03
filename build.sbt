@@ -6,6 +6,7 @@ lazy val cli =
     .in(file("cli"))
     .settings(
       name := "cli",
+      assemblyJarName := "cli.jar",
       libraryDependencies ++= List(
         "io.grpc"      % "grpc-netty"      % "1.31.0",
         "co.fs2"       %% "fs2-io"         % "2.4.0",
@@ -24,11 +25,12 @@ lazy val cli =
 lazy val protobuf =
   project
     .in(file("protobuf"))
-    .enablePlugins(Fs2Grpc)
     .settings(
       scalapbCodeGeneratorOptions += CodeGeneratorOption.FlatPackage,
       libraryDependencies += "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
     )
+    .enablePlugins(Fs2Grpc)
+    .disablePlugins(AssemblyPlugin)
 
 lazy val server =
   project
@@ -36,6 +38,7 @@ lazy val server =
     .dependsOn(protobuf)
     .settings(
       name := "server",
+      assemblyJarName := "server.jar",
       libraryDependencies ++= List(
         "io.grpc"       % "grpc-netty"      % "1.31.0",
         "io.grpc"       % "grpc-services"   % "1.31.0",
@@ -56,3 +59,4 @@ lazy val root = project
     skip in publish := true
   )
   .aggregate(protobuf, server, cli)
+  .disablePlugins(AssemblyPlugin)
