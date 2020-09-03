@@ -8,8 +8,8 @@ import com.monovore.decline.Opts
 import io.circe.parser.parse
 import io.grpc._
 import fs2._
-import logsdb.protos._
 import logsdb.cli.implicits._
+import logsdb.protos._
 
 case class PushOptions(host: String, port: Int, collection: String, isJson: Boolean = false)
 

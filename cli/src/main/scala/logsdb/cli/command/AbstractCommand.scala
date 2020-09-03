@@ -1,13 +1,15 @@
 package logsdb.cli.command
 
-import java.time.{Instant, LocalDateTime}
 import java.time.format.DateTimeFormatter
+import java.time.{Instant, LocalDateTime}
 import java.util.TimeZone
 
 import cats.effect.IO
 import com.monovore.decline.Opts
 import fs2.Stream
+import io.circe.syntax._
 import io.grpc.{ManagedChannel, ManagedChannelBuilder, StatusRuntimeException}
+import logsdb.cli.implicits._
 import logsdb.protos.LogRecord
 import org.lyranthe.fs2_grpc.java_runtime.syntax.ManagedChannelBuilderOps
 
@@ -34,7 +36,9 @@ abstract class AbstractCommand extends Command {
   }
 
   private[command] def mkString(record: LogRecord, messageOnly: Boolean): String = {
-    val EOL = java.lang.System.lineSeparator()
+    val EOL        = java.lang.System.lineSeparator()
+    val attributes = record.attributes.map(_.asJson.noSpaces).getOrElse("")
+
     if (messageOnly) {
       s"${record.message}${EOL}"
     } else {
@@ -42,7 +46,7 @@ abstract class AbstractCommand extends Command {
         .ofInstant(Instant.ofEpochMilli(record.time), TimeZone.getDefault.toZoneId)
         .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
 
-      s"${time} ${record.message}${EOL}"
+      s"${time} ${record.message} ${attributes}${EOL}"
     }
   }
 }
