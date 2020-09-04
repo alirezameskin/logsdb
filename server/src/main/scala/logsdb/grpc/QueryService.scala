@@ -19,8 +19,12 @@ class QueryService(R: RocksDB[IO])(implicit CS: ContextShift[IO], T: Timer[IO]) 
     val limit      = Option(request.limit).getOrElse(100)
     val collection = Option(request.collection).filter(_.nonEmpty).getOrElse(DEFAULT_COLLECTION)
 
+    val matchRecord: LogRecord => Boolean = record =>
+      Option(request.query).filter(_.nonEmpty).forall(s => record.message.contains(s))
+
     R.startsWith[RecordId, LogRecord](collection, RecordId(from))
       .takeWhile(r => to.forall(_ >= r.time))
+      .filter(matchRecord)
       .take(limit)
   }
 
@@ -30,6 +34,9 @@ class QueryService(R: RocksDB[IO])(implicit CS: ContextShift[IO], T: Timer[IO]) 
     val decoder    = implicitly[Decoder[LogRecord]]
     val collection = Option(request.collection).filter(_.nonEmpty).getOrElse(DEFAULT_COLLECTION)
 
+    val matchRecord: LogRecord => Boolean = record =>
+      Option(request.query).filter(_.nonEmpty).forall(s => record.message.contains(s))
+
     R.tail(collection, 100, delay, from)
       .void
       .stream
@@ -37,6 +44,7 @@ class QueryService(R: RocksDB[IO])(implicit CS: ContextShift[IO], T: Timer[IO]) 
       .map(_.toOption)
       .filter(_.isDefined)
       .map(_.get)
+      .filter(matchRecord)
   }
 
 }

@@ -39,5 +39,6 @@ message QueryParams {
   uint64 to = 3;
   int32 limit = 4;
   string after = 5;
+  string query = 6;
 }
 
