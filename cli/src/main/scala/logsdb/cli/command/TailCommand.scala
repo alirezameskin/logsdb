@@ -4,7 +4,8 @@ import cats.effect.{Blocker, ContextShift, IO}
 import cats.implicits._
 import com.monovore.decline.Opts
 import io.grpc.Metadata
-import logsdb.protos.{QueryFs2Grpc, QueryParams}
+import logsdb.protos.{LogRecord, QueryFs2Grpc, QueryParams}
+import logsdb.cli.implicits._
 
 case class TailOptions(host: String, port: Int, collection: String)
 
@@ -25,8 +26,7 @@ object TailCommand extends AbstractCommand {
       } yield logs
 
       result
-        .map(l => mkString(l, messageOnly = true))
-        .through(fs2.io.stdoutLines[IO, String](blocker))
+        .through(fs2.io.stdoutLines[IO, LogRecord](blocker))
         .compile
         .drain
     }

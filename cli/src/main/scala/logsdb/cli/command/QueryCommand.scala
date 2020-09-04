@@ -7,17 +7,10 @@ import cats.effect.{Blocker, ContextShift, IO}
 import cats.implicits._
 import com.monovore.decline.Opts
 import io.grpc.Metadata
-import logsdb.protos.{QueryFs2Grpc, QueryParams}
+import logsdb.cli.implicits._
+import logsdb.protos.{LogRecord, QueryFs2Grpc, QueryParams}
 
-case class QueryOptions(
-  host: String,
-  port: Int,
-  collection: String,
-  limit: Int,
-  from: Option[Long],
-  to: Long,
-  messageOnly: Boolean = false
-)
+case class QueryOptions(host: String, port: Int, collection: String, limit: Int, from: Option[Long], to: Long)
 
 object QueryCommand extends AbstractCommand {
   override type OPTIONS = QueryOptions
@@ -37,11 +30,8 @@ object QueryCommand extends AbstractCommand {
       .map(d => Instant.from(DateTimeFormatter.ISO_INSTANT.parse(d)).toEpochMilli)
       .orElse(Opts(Instant.now().toEpochMilli))
 
-  private val msgOnlyOpts: Opts[Boolean] =
-    Opts.flag("message-only", "Message only output.", short = "m").orFalse
-
   def options: Opts[QueryOptions] = Opts.subcommand("query", "Query") {
-    (hostOpts, portOpts, collectionOpts, limitOpts, fromOpts, toOpts, msgOnlyOpts).mapN(QueryOptions)
+    (hostOpts, portOpts, collectionOpts, limitOpts, fromOpts, toOpts).mapN(QueryOptions)
   }
 
   def execute(options: QueryOptions)(implicit CS: ContextShift[IO]): IO[Unit] =
@@ -54,8 +44,7 @@ object QueryCommand extends AbstractCommand {
       } yield logs
 
       result
-        .map(l => mkString(l, options.messageOnly))
-        .through(fs2.io.stdoutLines[IO, String](blocker))
+        .through(fs2.io.stdoutLines[IO, LogRecord](blocker))
         .compile
         .drain
     }
