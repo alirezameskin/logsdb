@@ -8,7 +8,7 @@ import cats.implicits._
 import com.monovore.decline.Opts
 import io.grpc.Metadata
 import logsdb.cli.implicits._
-import logsdb.protos.{LogRecord, QueryFs2Grpc, QueryParams}
+import logsdb.protos.{LogRecord, QueryParams, StorageFs2Grpc}
 
 case class QueryOptions(
   host: String,
@@ -50,7 +50,7 @@ object QueryCommand extends AbstractCommand {
       val result = for {
         channel <- makeChannel(options.host, options.port)
         params = QueryParams(options.collection, options.from.getOrElse(0L), options.to, options.limit, query = options.query)
-        client = QueryFs2Grpc.stub[IO](channel, errorAdapter = ea)
+        client = StorageFs2Grpc.stub[IO](channel, errorAdapter = ea)
         logs <- client.query(params, new Metadata())
       } yield logs
 

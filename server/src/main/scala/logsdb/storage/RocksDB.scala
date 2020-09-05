@@ -13,6 +13,8 @@ import scala.util.Try
 
 trait RocksDB[F[_]] {
 
+  def createCollection(collection: String): F[Unit]
+
   def get(collection: String, key: Array[Byte]): F[Option[Array[Byte]]]
 
   def put(collection: String, key: Array[Byte], value: Array[Byte]): F[Unit]

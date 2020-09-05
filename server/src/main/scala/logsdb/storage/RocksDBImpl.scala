@@ -23,6 +23,11 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
   type Key   = Array[Byte]
   type Value = Array[Byte]
 
+  override def createCollection(collection: String): F[Unit] =
+    for {
+      _ <- getColumnFamilyHandle(collection)
+    } yield ()
+
   def get(collection: String, key: Array[Byte]): F[Option[Array[Byte]]] =
     for {
       handle <- getColumnFamilyHandle(collection)

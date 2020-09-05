@@ -3,13 +3,10 @@ import "google/protobuf/struct.proto";
 
 package logsdb.protos;
 
-service Pusher {
-  rpc Push(stream PushRequest) returns (stream PushResponse) {}
-}
-
-service Query {
-  rpc Query(QueryParams) returns (stream LogRecord) {}
-  rpc Tail(QueryParams) returns (stream LogRecord) {}
+service Storage {
+  rpc query(QueryParams) returns (stream LogRecord) {}
+  rpc tail(QueryParams) returns (stream LogRecord) {}
+  rpc push(stream PushRequest) returns (stream PushResponse) {}
 }
 
 message PushRequest {

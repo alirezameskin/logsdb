@@ -31,7 +31,7 @@ object PushCommand extends AbstractCommand {
 
       val result = for {
         channel <- makeChannel(options.host, options.port)
-        pusher = PusherFs2Grpc.stub[IO](channel, errorAdapter = ea)
+        pusher = StorageFs2Grpc.stub[IO](channel, errorAdapter = ea)
         res <- pusher.push(stream, new Metadata())
       } yield res
 

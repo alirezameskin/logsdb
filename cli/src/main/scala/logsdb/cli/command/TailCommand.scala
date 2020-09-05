@@ -4,8 +4,8 @@ import cats.effect.{Blocker, ContextShift, IO}
 import cats.implicits._
 import com.monovore.decline.Opts
 import io.grpc.Metadata
-import logsdb.protos.{LogRecord, QueryFs2Grpc, QueryParams}
 import logsdb.cli.implicits._
+import logsdb.protos.{LogRecord, QueryParams, StorageFs2Grpc}
 
 case class TailOptions(host: String, port: Int, collection: String, query: String)
 
@@ -23,7 +23,7 @@ object TailCommand extends AbstractCommand {
     Blocker[IO].use { blocker =>
       val result = for {
         channel <- makeChannel(options.host, options.port)
-        client = QueryFs2Grpc.stub[IO](channel, errorAdapter = ea)
+        client = StorageFs2Grpc.stub[IO](channel, errorAdapter = ea)
         params = QueryParams(options.collection, 0L, 0, 10, query = options.query)
         logs <- client.tail(params, new Metadata())
       } yield logs

@@ -2,15 +2,18 @@ package logsdb.grpc
 
 import java.util.concurrent.TimeUnit
 
+import cats.effect.concurrent.Ref
 import cats.effect.{ContextShift, IO, Timer}
+import fs2.Stream
 import io.grpc._
 import logsdb.implicits._
-import logsdb.protos.{LogRecord, QueryFs2Grpc, QueryParams, RecordId}
+import logsdb.protos._
 import logsdb.storage.{Decoder, Encoder, RocksDB}
 
 import scala.concurrent.duration.FiniteDuration
 
-class QueryService(R: RocksDB[IO])(implicit CS: ContextShift[IO], T: Timer[IO]) extends QueryFs2Grpc[IO, Metadata] {
+class StorageService(R: RocksDB[IO], N: Ref[IO, Long])(implicit CS: ContextShift[IO], T: Timer[IO])
+    extends StorageFs2Grpc[IO, Metadata] {
   val DEFAULT_COLLECTION = "default"
 
   override def query(request: QueryParams, ctx: Metadata): fs2.Stream[IO, LogRecord] = {
@@ -47,9 +50,24 @@ class QueryService(R: RocksDB[IO])(implicit CS: ContextShift[IO], T: Timer[IO]) 
       .filter(matchRecord)
   }
 
+  override def push(request: Stream[IO, PushRequest], ctx: Metadata): Stream[IO, PushResponse] =
+    request.evalMap { req =>
+      for {
+        nuance <- N.getAndUpdate(x => x + 1)
+        _ <- req.record match {
+          case Some(record) =>
+            val collection = Option(req.collection).filter(_.nonEmpty).getOrElse("default")
+            val id         = RecordId(record.time, nuance)
+            R.put(collection, id, record.copy(id = Some(RecordId(record.time, nuance))))
+
+          case None =>
+            IO.pure()
+        }
+      } yield PushResponse()
+    }
 }
 
-object QueryService {
+object StorageService {
   def built(R: RocksDB[IO])(implicit CS: ContextShift[IO], T: Timer[IO]): ServerServiceDefinition =
-    QueryFs2Grpc.bindService(new QueryService(R))
+    StorageFs2Grpc.bindService(new StorageService(R, Ref.unsafe(0L)))
 }

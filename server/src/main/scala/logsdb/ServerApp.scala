@@ -4,7 +4,7 @@ import cats.effect.{Blocker, ExitCode, IO, Resource}
 import com.monovore.decline._
 import com.monovore.decline.effect.CommandIOApp
 import io.grpc.{Server, ServerBuilder}
-import logsdb.grpc.{PushService, QueryService}
+import logsdb.grpc.StorageService
 import logsdb.storage.RocksDB
 import org.lyranthe.fs2_grpc.java_runtime.syntax.ServerBuilderOps
 
@@ -22,8 +22,7 @@ object ServerApp extends CommandIOApp(name = "logsdb", header = "LogsDB server",
   def createGRPCServer(R: RocksDB[IO], port: Int): Resource[IO, Server] = {
     val builder = ServerBuilder
       .forPort(port)
-      .addService(PushService.build(R))
-      .addService(QueryService.built(R))
+      .addService(StorageService.built(R))
 
     new ServerBuilderOps(builder)
       .resource[IO]
