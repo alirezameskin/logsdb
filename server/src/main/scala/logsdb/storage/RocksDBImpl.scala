@@ -1,5 +1,7 @@
 package logsdb.storage
 
+import java.util.concurrent.TimeUnit
+
 import cats.MonadError
 import cats.effect.concurrent.{Ref, Semaphore}
 import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
@@ -73,7 +75,10 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
   override def latestSequenceNumber: F[Long] =
     db.getLatestSequenceNumber.pure[F]
 
-  def tail(
+  override def tail(collection: String, from: Option[Array[Byte]]): Stream[F, Array[Byte]] =
+    tailPull(collection, 100, FiniteDuration(500, TimeUnit.MILLISECONDS), from).void.stream
+
+  def tailPull(
     collection: String,
     chunkSize: Int,
     pullDelay: FiniteDuration,
@@ -96,7 +101,7 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
     }
 
     pullStream(stream, chunkSize, lastOffset).flatMap { offset =>
-      Pull.eval(Timer[F].sleep(pullDelay)) >> tail(collection, chunkSize, pullDelay, offset)
+      Pull.eval(Timer[F].sleep(pullDelay)) >> tailPull(collection, chunkSize, pullDelay, offset)
     }
   }
 

@@ -40,9 +40,7 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Long])(implicit CS: ContextShift
     val matchRecord: LogRecord => Boolean = record =>
       Option(request.query).filter(_.nonEmpty).forall(s => record.message.contains(s))
 
-    R.tail(collection, 100, delay, from)
-      .void
-      .stream
+    R.tail(collection, from)
       .map(bytes => decoder.decode(bytes))
       .map(_.toOption)
       .filter(_.isDefined)

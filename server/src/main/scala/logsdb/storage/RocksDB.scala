@@ -3,12 +3,10 @@ package logsdb.storage
 import cats.effect.concurrent.{Ref, Semaphore}
 import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
-import fs2.Pull
 import logsdb.protos.replication.TransactionLog
 import org.rocksdb._
 import org.{rocksdb => jrocks}
 
-import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
@@ -24,12 +22,7 @@ trait RocksDB[F[_]] {
 
   def startsWith[K, V](collection: String, prefix: K)(implicit KE: Encoder[K], KD: Decoder[K], V: Decoder[V]): fs2.Stream[F, V]
 
-  def tail(
-    collection: String,
-    chunkSize: Int,
-    delay: FiniteDuration,
-    from: Option[Array[Byte]]
-  ): Pull[F, Array[Byte], Option[Array[Byte]]]
+  def tail(collection: String, from: Option[Array[Byte]]): fs2.Stream[F, Array[Byte]]
 
   def transactionsSince(sequenceNumber: Long): fs2.Stream[F, TransactionLog]
 
