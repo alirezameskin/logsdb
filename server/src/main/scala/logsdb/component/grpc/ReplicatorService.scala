@@ -1,4 +1,4 @@
-package logsdb.grpc
+package logsdb.component.grpc
 
 import cats.effect.{ContextShift, IO, Timer}
 import io.grpc.{Metadata, ServerServiceDefinition}

@@ -1,30 +1,9 @@
 package logsdb
 
-import cats.effect.{Blocker, ContextShift, IO, Resource, Timer}
-import io.grpc.{Server, ServerBuilder}
-import logsdb.grpc.{ReplicatorService, StorageService}
+import cats.effect.{Blocker, ContextShift, IO, Timer}
+import logsdb.component.GrpcServer
 import logsdb.settings.AppSettings
 import logsdb.storage.RocksDB
-import org.lyranthe.fs2_grpc.java_runtime.syntax.ServerBuilderOps
-
-class PrimaryServerApp(R: RocksDB[IO], settings: AppSettings)(implicit CS: ContextShift[IO], T: Timer[IO]) {
-
-  def run: IO[Unit] =
-    createGRPCServer(R, settings.server.port).use { grpc =>
-      IO(grpc.start())
-    }
-
-  private def createGRPCServer(R: RocksDB[IO], port: Int): Resource[IO, Server] = {
-    val builder: ServerBuilder[_] =
-      ServerBuilder
-        .forPort(port)
-        .addService(StorageService.built(R))
-        .addService(ReplicatorService.built(R))
-
-    new ServerBuilderOps(builder)
-      .resource[IO]
-  }
-}
 
 object PrimaryServerApp {
 
@@ -32,10 +11,10 @@ object PrimaryServerApp {
     val primary = for {
       blocker <- Blocker[IO]
       rocksDb <- RocksDB.open[IO](settings.storage.path, blocker)
-      server  <- Resource.pure[IO, PrimaryServerApp](new PrimaryServerApp(rocksDb, settings))
+      server  <- GrpcServer.buildPrimaryServer(rocksDb, settings.server.port)
     } yield server
 
-    primary.use(_.run)
+    primary.use(s => s.run)
   }
 
 }

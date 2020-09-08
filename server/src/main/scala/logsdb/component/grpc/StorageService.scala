@@ -1,4 +1,4 @@
-package logsdb.grpc
+package logsdb.component.grpc
 
 import java.util.concurrent.TimeUnit
 
