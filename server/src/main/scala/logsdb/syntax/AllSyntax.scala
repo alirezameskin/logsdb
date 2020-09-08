@@ -1,3 +1,3 @@
 package logsdb.syntax
 
-trait AllSyntax extends RocksIteratorSyntax
+trait AllSyntax extends RocksIteratorSyntax with TransactionLogIteratorSyntax

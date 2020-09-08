@@ -4,6 +4,7 @@ import cats.effect.concurrent.{Ref, Semaphore}
 import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import fs2.Pull
+import logsdb.protos.replication.TransactionLog
 import org.rocksdb._
 import org.{rocksdb => jrocks}
 
@@ -12,8 +13,6 @@ import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 trait RocksDB[F[_]] {
-
-  def createCollection(collection: String): F[Unit]
 
   def get(collection: String, key: Array[Byte]): F[Option[Array[Byte]]]
 
@@ -31,6 +30,10 @@ trait RocksDB[F[_]] {
     delay: FiniteDuration,
     from: Option[Array[Byte]]
   ): Pull[F, Array[Byte], Option[Array[Byte]]]
+
+  def transactionsSince(sequenceNumber: Long): fs2.Stream[F, TransactionLog]
+
+  def latestSequenceNumber: F[Long]
 }
 
 object RocksDB {
@@ -40,6 +43,7 @@ object RocksDB {
   def open[F[_]: ContextShift: Timer: Concurrent](path: String, blocker: Blocker): Resource[F, RocksDB[F]] = {
     val options = new DBOptions()
       .setCreateIfMissing(true)
+      .setWalTtlSeconds(3600L)
 
     val columnFamilyOptions = new ColumnFamilyOptions()
       .useFixedLengthPrefixExtractor(8)

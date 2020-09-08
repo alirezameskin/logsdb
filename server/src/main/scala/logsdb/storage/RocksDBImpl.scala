@@ -6,6 +6,7 @@ import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import fs2.{Pull, RaiseThrowable, Stream}
 import logsdb.implicits._
+import logsdb.protos.replication.TransactionLog
 import org.rocksdb.{ColumnFamilyDescriptor, ColumnFamilyHandle, RocksIterator}
 import org.{rocksdb => jrocks}
 
@@ -22,11 +23,6 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
 
   type Key   = Array[Byte]
   type Value = Array[Byte]
-
-  override def createCollection(collection: String): F[Unit] =
-    for {
-      _ <- getColumnFamilyHandle(collection)
-    } yield ()
 
   def get(collection: String, key: Array[Byte]): F[Option[Array[Byte]]] =
     for {
@@ -63,6 +59,19 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
 
     stream.map(v => VD.decode(v)).map(_.toOption).filter(_.isDefined).map(_.get)
   }
+
+  override def transactionsSince(sequenceNumber: Long): Stream[F, TransactionLog] = {
+    val iterator = Resource.make(Sync[F].delay(db.getUpdatesSince(sequenceNumber)))(i => blocker.delay(i.close()))
+
+    for {
+      families <- Stream.eval(getColumnFamilies())
+      iterator <- Stream.resource(iterator)
+      str      <- iterator.stream[F](families).filter(_.sequenceNumber > sequenceNumber)
+    } yield str
+  }
+
+  override def latestSequenceNumber: F[Long] =
+    db.getLatestSequenceNumber.pure[F]
 
   def tail(
     collection: String,
@@ -107,6 +116,12 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
       iterator <- Resource.make(Sync[F].delay(db.newIterator(handle)))(i => blocker.delay(i.close()))
     } yield iterator
 
+  private def getColumnFamilies(): F[Map[Int, String]] =
+    for {
+      families <- columnFamilies.get
+      list     <- families.map(r => (r._2.getID, r._1)).pure[F]
+    } yield list
+
   private def getColumnFamilyHandle(name: String): F[ColumnFamilyHandle] =
     for {
       families <- columnFamilies.get
@@ -135,4 +150,5 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
     case Some(v) => D.decode(v).toOption
     case None    => None
   }
+
 }

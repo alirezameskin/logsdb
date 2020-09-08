@@ -10,7 +10,7 @@ sbt assembly
 Running Server
 
 ```shell script
-java -jar server/target/scala-2.13/server.jar -p 9080 -d /path/to/db
+java -jar server/target/scala-2.13/server.jar --config sample-configs/primary-server.conf
 ``` 
 
 Using client to push logs
