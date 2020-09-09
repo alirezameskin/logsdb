@@ -1,3 +1,5 @@
 package logsdb.settings
 
-final case class AppSettings(storage: StorageSettings, server: ServerSettings, replication: ReplicationSettings)
+import io.odin.Level
+
+final case class AppSettings(logLevel: Level, storage: StorageSettings, server: ServerSettings, replication: ReplicationSettings)

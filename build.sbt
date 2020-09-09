@@ -40,15 +40,16 @@ lazy val server =
       name := "server",
       assemblyJarName := "server.jar",
       libraryDependencies ++= List(
-        "io.grpc"       % "grpc-netty"      % "1.31.0",
-        "io.grpc"       % "grpc-services"   % "1.31.0",
-        "org.rocksdb"   % "rocksdbjni"      % "6.6.4",
-        "org.typelevel" %% "cats-core"      % "2.0.0",
-        "org.typelevel" %% "cats-effect"    % "2.1.4",
-        "com.monovore"  %% "decline-effect" % "1.0.0",
-        "io.circe"      %% "circe-config"   % "0.8.0",
-        "io.circe"      %% "circe-generic"  % "0.13.0",
-        "com.lihaoyi"   %% "fansi"          % "0.2.7"
+        "io.grpc"              % "grpc-netty"      % "1.31.0",
+        "io.grpc"              % "grpc-services"   % "1.31.0",
+        "org.rocksdb"          % "rocksdbjni"      % "6.6.4",
+        "org.typelevel"        %% "cats-core"      % "2.0.0",
+        "org.typelevel"        %% "cats-effect"    % "2.1.4",
+        "com.monovore"         %% "decline-effect" % "1.0.0",
+        "io.circe"             %% "circe-config"   % "0.8.0",
+        "io.circe"             %% "circe-generic"  % "0.13.0",
+        "com.lihaoyi"          %% "fansi"          % "0.2.7",
+        "com.github.valskalla" %% "odin-core"      % "0.8.1"
       ),
       assemblyMergeStrategy in assembly := {
         case "META-INF/MANIFEST.MF" => MergeStrategy.discard

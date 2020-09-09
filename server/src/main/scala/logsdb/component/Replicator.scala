@@ -2,8 +2,11 @@ package logsdb.component
 
 import java.util.concurrent.TimeUnit
 
+import cats.MonadError
 import cats.effect.{ConcurrentEffect, ContextShift, Resource, Timer}
+import cats.implicits._
 import io.grpc.{ManagedChannelBuilder, Metadata, StatusRuntimeException}
+import io.odin.Logger
 import logsdb.protos.replication.{ReplicateRequest, ReplicatorFs2Grpc, TransactionLog}
 import logsdb.settings.{AppSettings, ServerSettings}
 import logsdb.storage.RocksDB
@@ -11,13 +14,24 @@ import org.lyranthe.fs2_grpc.java_runtime.syntax.all._
 
 import scala.concurrent.duration.FiniteDuration
 
-class Replicator[F[_]: ContextShift: Timer: ConcurrentEffect](R: RocksDB[F], settings: AppSettings, primary: ServerSettings) {
-  val delay = Timer[F].sleep(FiniteDuration(settings.replication.syncDelay.getOrElse(500), TimeUnit.MILLISECONDS))
+class Replicator[F[_]: ContextShift: Timer: ConcurrentEffect: Logger](
+  R: RocksDB[F],
+  settings: AppSettings,
+  primary: ServerSettings
+) {
+  val logger         = Logger[F]
+  val pullDelay      = Timer[F].sleep(FiniteDuration(settings.replication.syncDelay.getOrElse(500), TimeUnit.MILLISECONDS))
+  val reconnectDelay = Timer[F].sleep(FiniteDuration(5, TimeUnit.SECONDS))
 
   val errorAdapter: StatusRuntimeException => Option[Exception] = e =>
     Option(e.getCause).map(e => new RuntimeException(e.getMessage))
 
-  def run: F[Unit] = replicate
+  def run: F[Unit] =
+    MonadError[F, Throwable].handleErrorWith(replicate) { err =>
+      val message = s"""Error during replication "${err.getMessage}". Trying in 5 seconds"""
+
+      logger.warn(message) *> reconnectDelay *> run
+    }
 
   private def replicate: F[Unit] = {
     val builder: ManagedChannelBuilder[_] = ManagedChannelBuilder
@@ -34,10 +48,10 @@ class Replicator[F[_]: ContextShift: Timer: ConcurrentEffect](R: RocksDB[F], set
             transaction    <- client.replicate(ReplicateRequest(sequenceNumber), new Metadata())
           } yield transaction
 
-          transactions.evalMap(t => insertTransactionLog(R, t)) ++ fs2.Stream.eval(delay) ++ doReplicate()
+          transactions.evalMap(t => insertTransactionLog(R, t)) ++ fs2.Stream.eval(pullDelay) ++ doReplicate()
         }
 
-        doReplicate().compile.drain
+        logger.info("Starting to replicate") *> doReplicate().compile.drain
       }
   }
 
@@ -48,6 +62,10 @@ class Replicator[F[_]: ContextShift: Timer: ConcurrentEffect](R: RocksDB[F], set
 }
 
 object Replicator {
-  def build[F[_]: ContextShift: Timer: ConcurrentEffect](R: RocksDB[F], settings: AppSettings, primary: ServerSettings) =
-    Resource.pure(new Replicator(R, settings, primary))
+  def build[F[_]: ContextShift: Timer: ConcurrentEffect: Logger](
+    R: RocksDB[F],
+    settings: AppSettings,
+    primary: ServerSettings
+  ): Resource[F, Replicator[F]] =
+    Resource.pure[F, Replicator[F]](new Replicator(R, settings, primary))
 }

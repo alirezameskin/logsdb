@@ -81,7 +81,7 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
   def tailPull(
     collection: String,
     chunkSize: Int,
-    pullDelay: FiniteDuration,
+    delay: FiniteDuration,
     lastOffset: Option[Key]
   ): Pull[F, Value, Option[Key]] = {
     val stream = lastOffset match {
@@ -101,7 +101,7 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
     }
 
     pullStream(stream, chunkSize, lastOffset).flatMap { offset =>
-      Pull.eval(Timer[F].sleep(pullDelay)) >> tailPull(collection, chunkSize, pullDelay, offset)
+      Pull.eval(Timer[F].sleep(delay)) >> tailPull(collection, chunkSize, delay, offset)
     }
   }
 
