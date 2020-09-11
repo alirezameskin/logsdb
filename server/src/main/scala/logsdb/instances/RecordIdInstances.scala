@@ -11,8 +11,9 @@ trait RecordIdInstances {
   implicit val recordIdEncoder: Encoder[RecordId] = new Encoder[RecordId] {
     override def encode(a: RecordId): Either[Throwable, Array[Byte]] = {
       val buffer = ByteBuffer.allocate(16)
-      buffer.putLong(a.time)
-      buffer.putLong(a.nuance)
+      buffer.putLong(a.seconds)
+      buffer.putInt(a.nanos)
+      buffer.putInt(a.nuance)
 
       Right(buffer.array())
     }
@@ -24,7 +25,7 @@ trait RecordIdInstances {
       buffer.put(bytes)
       buffer.flip()
 
-      Right(RecordId(buffer.getLong, buffer.getLong))
+      Right(RecordId(buffer.getLong, buffer.getInt, buffer.getInt))
     }
   }
 }

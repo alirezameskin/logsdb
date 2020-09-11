@@ -4,6 +4,7 @@ import java.time.Instant
 
 import cats.effect.{Blocker, ContextShift, IO}
 import cats.implicits._
+import com.google.protobuf.timestamp.Timestamp
 import com.monovore.decline.Opts
 import io.circe.parser.parse
 import io.grpc._
@@ -43,7 +44,9 @@ object PushCommand extends AbstractCommand {
       if (isJson) {
         in.evalMap(line => parseJson(line))
       } else {
-        in.map(line => LogRecord(Instant.now().toEpochMilli, line))
+        val now       = Instant.now()
+        val timestamp = Timestamp(now.getEpochSecond, now.getNano)
+        in.map(line => LogRecord(Some(timestamp), line))
       }
 
   def parseJson(content: String): IO[LogRecord] =

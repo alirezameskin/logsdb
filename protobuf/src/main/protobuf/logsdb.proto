@@ -1,5 +1,6 @@
 syntax = "proto3";
 import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 
 package logsdb.protos;
 
@@ -15,15 +16,16 @@ message PushRequest {
 }
 
 message LogRecord {
-  uint64 time = 1;
+  google.protobuf.Timestamp timestamp = 1;
   string message = 2;
   RecordId id = 3;
   google.protobuf.Struct attributes = 4;
 }
 
 message RecordId {
-  uint64 time = 1;
-  uint64 nuance = 2;
+  uint64 seconds = 1;
+  uint32 nanos = 2;
+  uint32 nuance = 3;
 }
 
 message PushResponse {

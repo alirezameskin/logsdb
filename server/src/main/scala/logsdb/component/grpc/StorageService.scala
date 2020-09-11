@@ -1,7 +1,5 @@
 package logsdb.component.grpc
 
-import java.util.concurrent.TimeUnit
-
 import cats.effect.concurrent.Ref
 import cats.effect.{ContextShift, IO, Timer}
 import fs2.Stream
@@ -10,9 +8,7 @@ import logsdb.implicits._
 import logsdb.protos._
 import logsdb.storage.{Decoder, Encoder, RocksDB}
 
-import scala.concurrent.duration.FiniteDuration
-
-class StorageService(R: RocksDB[IO], N: Ref[IO, Long])(implicit CS: ContextShift[IO], T: Timer[IO])
+class StorageService(R: RocksDB[IO], N: Ref[IO, Int])(implicit CS: ContextShift[IO], T: Timer[IO])
     extends StorageFs2Grpc[IO, Metadata] {
   val DEFAULT_COLLECTION = "default"
 
@@ -26,14 +22,13 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Long])(implicit CS: ContextShift
       Option(request.query).filter(_.nonEmpty).forall(s => record.message.contains(s))
 
     R.startsWith[RecordId, LogRecord](collection, RecordId(from))
-      .takeWhile(r => to.forall(_ >= r.time))
+      .takeWhile(r => to.forall(_ >= r.timestamp.map(_.seconds).getOrElse(0L)))
       .filter(matchRecord)
       .take(limit)
   }
 
   override def tail(request: QueryParams, ctx: Metadata): fs2.Stream[IO, LogRecord] = {
     val from       = Option(request.from).filter(_ != 0).map(RecordId(_)).flatMap(f => implicitly[Encoder[RecordId]].encode(f).toOption)
-    val delay      = FiniteDuration(500, TimeUnit.MILLISECONDS)
     val decoder    = implicitly[Decoder[LogRecord]]
     val collection = Option(request.collection).filter(_.nonEmpty).getOrElse(DEFAULT_COLLECTION)
 
@@ -55,8 +50,11 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Long])(implicit CS: ContextShift
         _ <- req.record match {
           case Some(record) =>
             val collection = Option(req.collection).filter(_.nonEmpty).getOrElse("default")
-            val id         = RecordId(record.time, nuance)
-            R.put(collection, id, record.copy(id = Some(RecordId(record.time, nuance))))
+            val id = record.timestamp
+              .map(t => RecordId(t.seconds, t.nanos, nuance))
+              .getOrElse(RecordId(java.time.Instant.now.getEpochSecond, java.time.Instant.now.getNano, nuance))
+
+            R.put(collection, id, record.copy(id = Some(id)))
 
           case None =>
             IO.pure()
@@ -67,5 +65,5 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Long])(implicit CS: ContextShift
 
 object StorageService {
   def built(R: RocksDB[IO])(implicit CS: ContextShift[IO], T: Timer[IO]): ServerServiceDefinition =
-    StorageFs2Grpc.bindService(new StorageService(R, Ref.unsafe(0L)))
+    StorageFs2Grpc.bindService(new StorageService(R, Ref.unsafe(0)))
 }
