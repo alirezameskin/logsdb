@@ -21,7 +21,7 @@ abstract class AbstractCommand extends Command {
     Opts.option[String]("collection", "Collection name", short = "c").orElse(Opts("default"))
 
   private[command] def makeChannel(host: String, port: Int): Stream[IO, ManagedChannel] = {
-    val builder = ManagedChannelBuilder
+    val builder: ManagedChannelBuilder[_] = ManagedChannelBuilder
       .forAddress(host, port)
       .usePlaintext()
 

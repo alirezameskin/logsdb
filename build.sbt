@@ -1,9 +1,24 @@
 Global / version := "0.1"
 Global / scalaVersion := "2.13.3"
 
+lazy val scalacSettings = Seq(
+  scalacOptions ++= Seq(
+    "-deprecation",
+    "-language:higherKinds",
+    "-language:implicitConversions",
+    "-Xcheckinit",
+    "-feature",
+    "-Xfatal-warnings",
+    "-Ywarn-dead-code",
+    "-Ywarn-numeric-widen",
+    "-Ywarn-value-discard"
+  )
+)
+
 lazy val cli =
   project
     .in(file("cli"))
+    .settings(scalacSettings)
     .settings(
       name := "cli",
       assemblyJarName := "cli.jar",
@@ -25,6 +40,7 @@ lazy val cli =
 lazy val protobuf =
   project
     .in(file("protobuf"))
+    .settings(scalacSettings)
     .settings(
       scalapbCodeGeneratorOptions += CodeGeneratorOption.FlatPackage,
       libraryDependencies += "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
@@ -36,6 +52,7 @@ lazy val server =
   project
     .in(file("server"))
     .dependsOn(protobuf)
+    .settings(scalacSettings)
     .settings(
       name := "server",
       assemblyJarName := "server.jar",

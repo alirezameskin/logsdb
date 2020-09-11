@@ -15,7 +15,7 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Int])(implicit CS: ContextShift[
   override def query(request: QueryParams, ctx: Metadata): fs2.Stream[IO, LogRecord] = {
     val to         = Option(request.to)
     val from       = Option(request.from).getOrElse(0L)
-    val limit      = Option(request.limit).getOrElse(100)
+    val limit      = Option(request.limit).getOrElse(100).toLong
     val collection = Option(request.collection).filter(_.nonEmpty).getOrElse(DEFAULT_COLLECTION)
 
     val matchRecord: LogRecord => Boolean = record =>
@@ -57,7 +57,7 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Int])(implicit CS: ContextShift[
             R.put(collection, id, record.copy(id = Some(id)))
 
           case None =>
-            IO.pure()
+            IO.pure[Unit] { () }
         }
       } yield PushResponse()
     }
