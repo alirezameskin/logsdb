@@ -1,4 +1,4 @@
-package logsdb.ingest
+package logsdb.cli
 
 import cats.effect.{ExitCode, IO}
 import com.monovore.decline.Opts

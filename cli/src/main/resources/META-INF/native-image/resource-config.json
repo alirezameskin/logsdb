@@ -1,0 +1,8 @@
+{
+  "resources":[
+    {"pattern":"\\QMETA-INF/services/io.grpc.LoadBalancerProvider\\E"}, 
+    {"pattern":"\\QMETA-INF/services/io.grpc.ManagedChannelProvider\\E"}, 
+    {"pattern":"\\QMETA-INF/services/io.grpc.NameResolverProvider\\E"}
+  ],
+  "bundles":[]
+}

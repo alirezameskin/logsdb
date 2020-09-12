@@ -20,8 +20,14 @@ lazy val cli =
     .in(file("cli"))
     .settings(scalacSettings)
     .settings(
-      name := "cli",
-      assemblyJarName := "cli.jar",
+      Compile / mainClass := Some("logsdb.cli.CliApp"),
+      nativeImageOptions := Seq(
+        "-H:+ReportExceptionStackTraces",
+        "--no-fallback",
+        "--allow-incomplete-classpath"
+      ),
+      name := "logsdb-cli",
+      assemblyJarName := "logsdb-cli.jar",
       libraryDependencies ++= List(
         "io.grpc"      % "grpc-netty"      % "1.31.0",
         "co.fs2"       %% "fs2-io"         % "2.4.0",
@@ -36,6 +42,7 @@ lazy val cli =
       }
     )
     .dependsOn(protobuf)
+    .enablePlugins(NativeImagePlugin)
 
 lazy val protobuf =
   project
