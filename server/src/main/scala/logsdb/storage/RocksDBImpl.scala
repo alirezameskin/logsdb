@@ -148,6 +148,7 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
       }
       families <- columnFamilies.updateAndGet(_ => changes)
       handle   <- families(name).pure[F]
+      _        <- semaphore.release
 
     } yield handle
 
