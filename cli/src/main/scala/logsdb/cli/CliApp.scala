@@ -1,9 +1,11 @@
 package logsdb.cli
 
+import cats.effect.Console.io._
 import cats.effect.{ExitCode, IO}
 import com.monovore.decline.Opts
 import com.monovore.decline.effect.CommandIOApp
 import logsdb.cli.command._
+import logsdb.cli.implicits._
 
 object CliApp extends CommandIOApp(name = "logcli", "CLI tool to logsdb") {
 
@@ -23,6 +25,6 @@ object CliApp extends CommandIOApp(name = "logcli", "CLI tool to logsdb") {
     result.attempt
       .flatMap {
         case Right(_)  => IO(ExitCode.Success)
-        case Left(err) => IO(println(fansi.Color.Red(err.getMessage))) *> IO(ExitCode.Error)
+        case Left(err) => putError(fansi.Color.Red(err.getMessage)) *> IO(ExitCode.Error)
       }
 }
