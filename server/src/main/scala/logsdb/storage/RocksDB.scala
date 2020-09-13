@@ -3,6 +3,7 @@ package logsdb.storage
 import cats.effect.concurrent.{Ref, Semaphore}
 import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
+import logsdb.protos.Collection
 import logsdb.protos.replication.TransactionLog
 import org.rocksdb._
 import org.{rocksdb => jrocks}
@@ -27,6 +28,8 @@ trait RocksDB[F[_]] {
   def transactionsSince(sequenceNumber: Long): fs2.Stream[F, TransactionLog]
 
   def latestSequenceNumber: F[Long]
+
+  def collections: F[Seq[Collection]]
 }
 
 object RocksDB {

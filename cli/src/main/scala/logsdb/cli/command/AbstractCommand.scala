@@ -1,6 +1,6 @@
 package logsdb.cli.command
 
-import cats.effect.IO
+import cats.effect.{IO, Resource}
 import com.monovore.decline.Opts
 import fs2.Stream
 import io.grpc.{ManagedChannel, ManagedChannelBuilder, StatusRuntimeException}
@@ -26,5 +26,13 @@ abstract class AbstractCommand extends Command {
       .usePlaintext()
 
     new ManagedChannelBuilderOps(builder).stream[IO]
+  }
+
+  private[command] def makeChannelResource(host: String, port: Int): Resource[IO, ManagedChannel] = {
+    val builder: ManagedChannelBuilder[_] = ManagedChannelBuilder
+      .forAddress(host, port)
+      .usePlaintext()
+
+    new ManagedChannelBuilderOps(builder).resource[IO]
   }
 }

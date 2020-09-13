@@ -10,7 +10,6 @@ lazy val scalacSettings = Seq(
     "-feature",
     "-Xfatal-warnings",
     "-Ywarn-dead-code",
-    "-Ywarn-numeric-widen",
     "-Ywarn-value-discard"
   )
 )

@@ -8,6 +8,7 @@ import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import fs2.{Pull, RaiseThrowable, Stream}
 import logsdb.implicits._
+import logsdb.protos.Collection
 import logsdb.protos.replication.TransactionLog
 import org.rocksdb.{ColumnFamilyDescriptor, ColumnFamilyHandle, RocksIterator}
 import org.{rocksdb => jrocks}
@@ -74,6 +75,12 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
 
   override def latestSequenceNumber: F[Long] =
     db.getLatestSequenceNumber.pure[F]
+
+  override def collections: F[Seq[Collection]] =
+    for {
+      families <- columnFamilies.get
+      collections = families.map(f => Collection(f._2.getID, f._1, db.getColumnFamilyMetaData(f._2).size))
+    } yield collections.toSeq.sortBy(_.id)
 
   override def tail(collection: String, from: Option[Array[Byte]]): Stream[F, Array[Byte]] =
     tailPull(collection, 100, FiniteDuration(500, TimeUnit.MILLISECONDS), from).void.stream

@@ -8,6 +8,7 @@ service Storage {
   rpc query(QueryParams) returns (stream LogRecord) {}
   rpc tail(QueryParams) returns (stream LogRecord) {}
   rpc push(stream PushRequest) returns (stream PushResponse) {}
+  rpc collections(GetCollectionsRequest) returns (Collections) {}
 }
 
 message PushRequest {
@@ -39,5 +40,18 @@ message QueryParams {
   int32 limit = 4;
   string after = 5;
   string query = 6;
+}
+
+message GetCollectionsRequest {
+}
+
+message Collections {
+  repeated Collection collections = 1;
+}
+
+message Collection {
+  uint32 id = 1;
+  string name = 2;
+  uint64 size = 3;
 }
 

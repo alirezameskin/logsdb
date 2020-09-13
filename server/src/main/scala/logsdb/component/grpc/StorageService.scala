@@ -61,6 +61,9 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Int])(implicit CS: ContextShift[
         }
       } yield PushResponse()
     }
+
+  override def collections(request: GetCollectionsRequest, ctx: Metadata): IO[Collections] =
+    R.collections.map(Collections.apply(_))
 }
 
 object StorageService {
