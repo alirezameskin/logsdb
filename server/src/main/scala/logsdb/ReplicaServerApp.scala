@@ -2,7 +2,7 @@ package logsdb
 
 import cats.effect.{Blocker, ContextShift, IO, Resource, Timer}
 import io.odin.Logger
-import logsdb.component.{GrpcServer, Replicator}
+import logsdb.component.{GrpcServer, HttpServer, Replicator}
 import logsdb.settings.AppSettings
 import logsdb.storage.RocksDB
 
@@ -16,14 +16,17 @@ object ReplicaServerApp {
       blocker    <- Blocker[IO]
       rocksDb    <- RocksDB.open[IO](settings.storage.path, blocker)
       grpc       <- GrpcServer.buildReplicaServer(rocksDb, settings.server.port)
+      http       <- HttpServer.build(rocksDb)
       replicator <- Replicator.build[IO](rocksDb, settings, primary)
-    } yield (grpc, replicator)
+    } yield (grpc, http, replicator)
 
     components.use {
-      case (grpc, replicator) =>
+      case (grpc, http, replicator) =>
         for {
+          hf <- http.run.start
           gf <- grpc.run.start
           rf <- replicator.run.start
+          _  <- hf.join
           _  <- gf.join
           _  <- rf.join
         } yield ()

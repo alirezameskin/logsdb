@@ -1,6 +1,13 @@
 Global / version := "0.1"
 Global / scalaVersion := "2.13.3"
 
+val http4sVersion  = "0.21.6"
+val grpcVersion    = "1.31.0"
+val circeVersion   = "0.12.3"
+val fansiVersion   = "0.2.7"
+val rocksDbVersion = "6.6.4"
+val catsVersion    = "2.0.0"
+
 lazy val scalacSettings = Seq(
   scalacOptions ++= Seq(
     "-deprecation",
@@ -28,12 +35,12 @@ lazy val cli =
       name := "logsdb-cli",
       assemblyJarName := "logsdb-cli.jar",
       libraryDependencies ++= List(
-        "io.grpc"        % "grpc-netty"      % "1.31.0",
+        "io.grpc"        % "grpc-netty"      % grpcVersion,
         "co.fs2"         %% "fs2-io"         % "2.4.0",
         "com.monovore"   %% "decline-effect" % "1.0.0",
-        "com.lihaoyi"    %% "fansi"          % "0.2.7",
-        "io.circe"       %% "circe-core"     % "0.12.3",
-        "io.circe"       %% "circe-parser"   % "0.12.3",
+        "com.lihaoyi"    %% "fansi"          % fansiVersion,
+        "io.circe"       %% "circe-core"     % circeVersion,
+        "io.circe"       %% "circe-parser"   % circeVersion,
         "dev.profunktor" %% "console4cats"   % "0.8.1"
       ),
       assemblyMergeStrategy in assembly := {
@@ -64,16 +71,20 @@ lazy val server =
       name := "server",
       assemblyJarName := "server.jar",
       libraryDependencies ++= List(
-        "io.grpc"              % "grpc-netty"      % "1.31.0",
-        "io.grpc"              % "grpc-services"   % "1.31.0",
-        "org.rocksdb"          % "rocksdbjni"      % "6.6.4",
-        "org.typelevel"        %% "cats-core"      % "2.0.0",
-        "org.typelevel"        %% "cats-effect"    % "2.1.4",
-        "com.monovore"         %% "decline-effect" % "1.0.0",
-        "io.circe"             %% "circe-config"   % "0.8.0",
-        "io.circe"             %% "circe-generic"  % "0.13.0",
-        "com.lihaoyi"          %% "fansi"          % "0.2.7",
-        "com.github.valskalla" %% "odin-core"      % "0.8.1"
+        "io.grpc"              % "grpc-netty"           % grpcVersion,
+        "io.grpc"              % "grpc-services"        % grpcVersion,
+        "org.rocksdb"          % "rocksdbjni"           % rocksDbVersion,
+        "org.typelevel"        %% "cats-core"           % catsVersion,
+        "org.typelevel"        %% "cats-effect"         % "2.1.4",
+        "com.monovore"         %% "decline-effect"      % "1.0.0",
+        "io.circe"             %% "circe-config"        % "0.8.0",
+        "io.circe"             %% "circe-generic"       % "0.13.0",
+        "com.github.valskalla" %% "odin-core"           % "0.8.1",
+        "com.lihaoyi"          %% "fansi"               % fansiVersion,
+        "org.http4s"           %% "http4s-dsl"          % http4sVersion,
+        "org.http4s"           %% "http4s-circe"        % http4sVersion,
+        "org.http4s"           %% "http4s-blaze-server" % http4sVersion,
+        "org.http4s"           %% "http4s-blaze-client" % http4sVersion
       ),
       assemblyMergeStrategy in assembly := {
         case "META-INF/MANIFEST.MF" => MergeStrategy.discard

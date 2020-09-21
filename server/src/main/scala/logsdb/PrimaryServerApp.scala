@@ -2,7 +2,7 @@ package logsdb
 
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import io.odin.Logger
-import logsdb.component.GrpcServer
+import logsdb.component.{GrpcServer, HttpServer}
 import logsdb.settings.AppSettings
 import logsdb.storage.RocksDB
 
@@ -12,10 +12,19 @@ object PrimaryServerApp {
     val primary = for {
       blocker <- Blocker[IO]
       rocksDb <- RocksDB.open[IO](settings.storage.path, blocker)
-      server  <- GrpcServer.buildPrimaryServer(rocksDb, settings.server.port)
-    } yield server
+      grpc    <- GrpcServer.buildPrimaryServer(rocksDb, settings.server.port)
+      http    <- HttpServer.build(rocksDb)
+    } yield (grpc, http)
 
-    primary.use(s => s.run)
+    primary.use {
+      case (grpc, http) =>
+        for {
+          hf <- http.run.start
+          gf <- grpc.run.start
+          _  <- gf.join
+          _  <- hf.join
+        } yield ()
+    }
   }
 
 }
