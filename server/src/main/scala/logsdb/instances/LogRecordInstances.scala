@@ -1,6 +1,9 @@
 package logsdb.instances
 
-import logsdb.protos.LogRecord
+import io.circe
+import io.circe.Json
+import io.circe.syntax._
+import logsdb.protos.{Collection, LogRecord, RecordId}
 import logsdb.storage.Decoder.Result
 import logsdb.storage.{Decoder, Encoder}
 
@@ -13,4 +16,12 @@ trait LogRecordInstances {
   implicit val recordDecoder: Decoder[LogRecord] = new Decoder[LogRecord] {
     override def decode(bytes: Array[Byte]): Result[LogRecord] = LogRecord.validate(bytes).toEither
   }
+
+  implicit def recordJsonEncoder(implicit RIE: circe.Encoder[RecordId]): circe.Encoder[LogRecord] = new circe.Encoder[LogRecord] {
+    override def apply(r: LogRecord): Json = Json.obj(
+      ("id", r.id.asJson),
+      ("message", Json.fromString(r.message))
+    )
+  }
+
 }

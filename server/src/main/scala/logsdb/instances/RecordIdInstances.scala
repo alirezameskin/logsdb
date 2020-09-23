@@ -2,6 +2,8 @@ package logsdb.instances
 
 import java.nio.ByteBuffer
 
+import io.circe
+import io.circe.Json
 import logsdb.protos.RecordId
 import logsdb.storage.Decoder.Result
 import logsdb.storage.{Decoder, Encoder}
@@ -27,5 +29,11 @@ trait RecordIdInstances {
 
       Right(RecordId(buffer.getLong, buffer.getInt, buffer.getInt))
     }
+  }
+
+  implicit val recordIdJsonEncoder: circe.Encoder[RecordId] = new circe.Encoder[RecordId] {
+    override def apply(a: RecordId): Json = Json.fromString(
+      s"${a.seconds}.${a.nanos}.${a.nuance}"
+    )
   }
 }

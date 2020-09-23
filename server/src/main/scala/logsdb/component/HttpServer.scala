@@ -2,7 +2,7 @@ package logsdb.component
 
 import cats.effect.{ConcurrentEffect, IO, Resource, Timer}
 import io.odin.Logger
-import logsdb.component.http.CollectionEndpoints
+import logsdb.component.http.{CollectionEndpoints, LogsEndpoints}
 import logsdb.storage.RocksDB
 import org.http4s.server.{Router, Server}
 import org.http4s.server.blaze.BlazeServerBuilder
@@ -20,7 +20,8 @@ object HttpServer {
       .bindHttp(8080, "0.0.0.0")
       .withHttpApp(
         Router(
-          "/v1/collections" -> CollectionEndpoints(R).endpoints
+          "/v1/collections" -> CollectionEndpoints(R).endpoints,
+          "/v1/logs"        -> LogsEndpoints(R).endpoints
         ).orNotFound
       )
       .resource
