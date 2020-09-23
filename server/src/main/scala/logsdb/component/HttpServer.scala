@@ -3,6 +3,7 @@ package logsdb.component
 import cats.effect.{ConcurrentEffect, IO, Resource, Timer}
 import io.odin.Logger
 import logsdb.component.http.{CollectionEndpoints, LogsEndpoints}
+import logsdb.settings.HttpServerSettings
 import logsdb.storage.RocksDB
 import org.http4s.server.{Router, Server}
 import org.http4s.server.blaze.BlazeServerBuilder
@@ -15,9 +16,12 @@ class HttpServer(val server: Server[IO], logger: Logger[IO]) {
 }
 
 object HttpServer {
-  def build(R: RocksDB[IO])(implicit T: Timer[IO], CF: ConcurrentEffect[IO], L: Logger[IO]): Resource[IO, HttpServer] =
+  def build(
+    settings: HttpServerSettings,
+    R: RocksDB[IO]
+  )(implicit T: Timer[IO], CF: ConcurrentEffect[IO], L: Logger[IO]): Resource[IO, HttpServer] =
     BlazeServerBuilder[IO](global)
-      .bindHttp(8080, "0.0.0.0")
+      .bindHttp(settings.port, settings.host)
       .withHttpApp(
         Router(
           "/v1/collections" -> CollectionEndpoints(R).endpoints,

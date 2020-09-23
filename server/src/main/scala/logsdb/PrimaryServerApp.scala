@@ -13,7 +13,7 @@ object PrimaryServerApp {
       blocker <- Blocker[IO]
       rocksDb <- RocksDB.open[IO](settings.storage.path, blocker)
       grpc    <- GrpcServer.buildPrimaryServer(rocksDb, settings.server.port)
-      http    <- HttpServer.build(rocksDb)
+      http    <- HttpServer.build(settings.http, rocksDb)
     } yield (grpc, http)
 
     primary.use {

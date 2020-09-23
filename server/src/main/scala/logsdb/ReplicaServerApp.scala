@@ -16,7 +16,7 @@ object ReplicaServerApp {
       blocker    <- Blocker[IO]
       rocksDb    <- RocksDB.open[IO](settings.storage.path, blocker)
       grpc       <- GrpcServer.buildReplicaServer(rocksDb, settings.server.port)
-      http       <- HttpServer.build(rocksDb)
+      http       <- HttpServer.build(settings.http, rocksDb)
       replicator <- Replicator.build[IO](rocksDb, settings, primary)
     } yield (grpc, http, replicator)
 
