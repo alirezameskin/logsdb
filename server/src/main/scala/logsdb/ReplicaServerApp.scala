@@ -14,7 +14,7 @@ object ReplicaServerApp {
         IO.fromOption(settings.replication.primary)(new RuntimeException("There is not any primary configuration"))
       )
       blocker    <- Blocker[IO]
-      rocksDb    <- RocksDB.open[IO](settings.storage.path, blocker)
+      rocksDb    <- RocksDB.open[IO](settings.storage, blocker)
       grpc       <- GrpcServer.buildReplicaServer(rocksDb, settings.server.port)
       http       <- HttpServer.build(settings.http, rocksDb)
       replicator <- Replicator.build[IO](rocksDb, settings, primary)

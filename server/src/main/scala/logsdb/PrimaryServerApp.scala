@@ -11,7 +11,7 @@ object PrimaryServerApp {
   def run(settings: AppSettings)(implicit CS: ContextShift[IO], T: Timer[IO], L: Logger[IO]): IO[Unit] = {
     val primary = for {
       blocker <- Blocker[IO]
-      rocksDb <- RocksDB.open[IO](settings.storage.path, blocker)
+      rocksDb <- RocksDB.open[IO](settings.storage, blocker)
       grpc    <- GrpcServer.buildPrimaryServer(rocksDb, settings.server.port)
       http    <- HttpServer.build(settings.http, rocksDb)
     } yield (grpc, http)

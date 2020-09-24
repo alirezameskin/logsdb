@@ -5,6 +5,7 @@ import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import logsdb.protos.Collection
 import logsdb.protos.replication.TransactionLog
+import logsdb.settings.StorageSettings
 import org.rocksdb._
 import org.{rocksdb => jrocks}
 
@@ -36,21 +37,21 @@ object RocksDB {
 
   val DEFAULT_COLUMN_FAMILY = "default".getBytes
 
-  def open[F[_]: ContextShift: Timer: Concurrent](path: String, blocker: Blocker): Resource[F, RocksDB[F]] = {
+  def open[F[_]: ContextShift: Timer: Concurrent](settings: StorageSettings, blocker: Blocker): Resource[F, RocksDB[F]] = {
     val options = new DBOptions()
       .setCreateIfMissing(true)
-      .setWalTtlSeconds(3600L)
+      .setWalTtlSeconds(settings.walTtlSeconds)
 
     val columnFamilyOptions = new ColumnFamilyOptions()
       .useFixedLengthPrefixExtractor(8)
 
     val acquire: F[(jrocks.RocksDB, Map[String, ColumnFamilyHandle])] = for {
       _         <- Try(jrocks.RocksDB.loadLibrary()).liftTo[F]
-      available <- Try(jrocks.RocksDB.listColumnFamilies(new Options(), path).asScala.toList).liftTo[F]
+      available <- Try(jrocks.RocksDB.listColumnFamilies(new Options(), settings.path).asScala.toList).liftTo[F]
       families    = if (available.contains(DEFAULT_COLUMN_FAMILY)) available else available.appended(DEFAULT_COLUMN_FAMILY)
       descriptors = families.map(name => new ColumnFamilyDescriptor(name, columnFamilyOptions)).asJava
       list        = scala.collection.mutable.ListBuffer.empty[ColumnFamilyHandle].asJava
-      db <- Try(jrocks.RocksDB.open(options, path, descriptors, list)).liftTo[F]
+      db <- Try(jrocks.RocksDB.open(options, settings.path, descriptors, list)).liftTo[F]
       handles = list.asScala.map(h => (new String(h.getName), h)).toMap
     } yield (db, handles)
 
