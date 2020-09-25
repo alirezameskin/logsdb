@@ -1,3 +1,3 @@
 package logsdb.instances
 
-trait AllInstances extends LogRecordInstances with RecordIdInstances with CollectionInstances
+trait AllInstances extends LogRecordInstances with RecordIdInstances with CollectionInstances with StructInstances
