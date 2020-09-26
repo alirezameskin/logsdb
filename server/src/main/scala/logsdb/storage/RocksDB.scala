@@ -1,7 +1,7 @@
 package logsdb.storage
 
 import cats.effect.concurrent.{Ref, Semaphore}
-import cats.effect.{Blocker, Concurrent, ContextShift, Resource, Sync, Timer}
+import cats.effect.{Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import logsdb.protos.Collection
 import logsdb.protos.replication.TransactionLog
@@ -37,7 +37,7 @@ object RocksDB {
 
   val DEFAULT_COLUMN_FAMILY = "default".getBytes
 
-  def open[F[_]: ContextShift: Timer: Concurrent](settings: StorageSettings, blocker: Blocker): Resource[F, RocksDB[F]] = {
+  def open[F[_]: ContextShift: Timer: Concurrent](settings: StorageSettings): Resource[F, RocksDB[F]] = {
     val options = new DBOptions()
       .setCreateIfMissing(true)
       .setWalTtlSeconds(settings.walTtlSeconds)
@@ -60,7 +60,7 @@ object RocksDB {
       semaphore <- Resource.liftF(Semaphore[F](1))
       resource  <- Resource.make(acquire)(r => Sync[F].delay { r._1.close() })
       handles   <- Resource.liftF(Ref.of(resource._2))
-    } yield new RocksDBImpl[F](resource._1, handles, blocker, semaphore)
+    } yield new RocksDBImpl[F](resource._1, handles, semaphore)
 
   }
 

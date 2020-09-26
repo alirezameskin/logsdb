@@ -4,7 +4,7 @@ import java.util.concurrent.TimeUnit
 
 import cats.MonadError
 import cats.effect.concurrent.{Ref, Semaphore}
-import cats.effect.{Blocker, ContextShift, Resource, Sync, Timer}
+import cats.effect.{ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import fs2.{Pull, RaiseThrowable, Stream}
 import logsdb.implicits._
@@ -18,7 +18,6 @@ import scala.concurrent.duration.FiniteDuration
 class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
   db: jrocks.RocksDB,
   columnFamilies: Ref[F, Map[String, ColumnFamilyHandle]],
-  blocker: Blocker,
   semaphore: Semaphore[F]
 )(
   implicit M: MonadError[F, Throwable]
@@ -64,7 +63,7 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
   }
 
   override def transactionsSince(sequenceNumber: Long): Stream[F, TransactionLog] = {
-    val iterator = Resource.make(Sync[F].delay(db.getUpdatesSince(sequenceNumber)))(i => blocker.delay(i.close()))
+    val iterator = Resource.make(Sync[F].delay(db.getUpdatesSince(sequenceNumber)))(i => Sync[F].delay(i.close()))
 
     for {
       families <- Stream.eval(getColumnFamilies())
@@ -125,7 +124,7 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
   private def makeIterator(columnFamily: String): Resource[F, RocksIterator] =
     for {
       handle   <- Resource.liftF(getColumnFamilyHandle(columnFamily))
-      iterator <- Resource.make(Sync[F].delay(db.newIterator(handle)))(i => blocker.delay(i.close()))
+      iterator <- Resource.make(Sync[F].delay(db.newIterator(handle)))(i => Sync[F].delay(i.close()))
     } yield iterator
 
   private def getColumnFamilies(): F[Map[Int, String]] =
