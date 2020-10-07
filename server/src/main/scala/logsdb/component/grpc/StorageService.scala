@@ -1,7 +1,9 @@
 package logsdb.component.grpc
 
+import cats.Traverse
 import cats.effect.concurrent.Ref
 import cats.effect.{ContextShift, IO, Timer}
+import cats.implicits._
 import fs2.Stream
 import io.grpc._
 import logsdb.implicits._
@@ -45,21 +47,20 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Int])(implicit CS: ContextShift[
 
   override def push(request: Stream[IO, PushRequest], ctx: Metadata): Stream[IO, PushResponse] =
     request.evalMap { req =>
-      for {
-        nuance <- N.getAndUpdate(x => x + 1)
-        _ <- req.record match {
-          case Some(record) =>
-            val collection = Option(req.collection).filter(_.nonEmpty).getOrElse("default")
-            val id = record.timestamp
+      val collection = Option(req.collection).filter(_.nonEmpty).getOrElse("default")
+
+      Traverse[List]
+        .traverse[IO, LogRecord, Unit](req.records.toList) { record =>
+          for {
+            nuance <- N.getAndUpdate(x => x + 1)
+            id = record.timestamp
               .map(t => RecordId(t.seconds, t.nanos, nuance))
               .getOrElse(RecordId(java.time.Instant.now.getEpochSecond, java.time.Instant.now.getNano, nuance))
 
-            R.put(collection, id, record.copy(id = Some(id)))
-
-          case None =>
-            IO.pure[Unit] { () }
+            _ <- R.put(collection, id, record.copy(id = Some(id)))
+          } yield ()
         }
-      } yield PushResponse()
+        .map(_ => PushResponse())
     }
 
   override def collections(request: GetCollectionsRequest, ctx: Metadata): IO[Collections] =

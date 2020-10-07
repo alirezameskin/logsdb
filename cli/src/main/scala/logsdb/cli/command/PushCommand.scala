@@ -12,7 +12,7 @@ import fs2._
 import logsdb.cli.implicits._
 import logsdb.protos._
 
-case class PushOptions(host: String, port: Int, collection: String, isJson: Boolean = false)
+case class PushOptions(host: String, port: Int, collection: String, isJson: Boolean = false, chunkSize: Int)
 
 object PushCommand extends AbstractCommand {
   override type OPTIONS = PushOptions
@@ -20,15 +20,18 @@ object PushCommand extends AbstractCommand {
   private val jsonOpts: Opts[Boolean] =
     Opts.flag("json", "Json Input.", short = "j").orFalse
 
+  private val chunkSizeOpts: Opts[Int] =
+    Opts.option[Int]("chunk-size", "Chunk size", short = "l").orElse(Opts(10))
+
   def options: Opts[PushOptions] = Opts.subcommand("push", "Push logs to server") {
-    (hostOpts, portOpts, collectionOpts, jsonOpts).mapN(PushOptions)
+    (hostOpts, portOpts, collectionOpts, jsonOpts, chunkSizeOpts).mapN(PushOptions)
   }
 
   def execute(options: PushOptions)(implicit CS: ContextShift[IO]): IO[Unit] =
     Blocker[IO].use { blocker =>
-      val recordConverter  = toRecord(options.isJson)
+      val recordsConverter = toRecords(options.isJson)
       val requestConverter = toPushRequest(options.collection)
-      val stream           = stdin(blocker).through(recordConverter).through(requestConverter)
+      val stream           = stdin(blocker, options.chunkSize).through(recordsConverter).through(requestConverter)
 
       val result = for {
         channel <- makeChannel(options.host, options.port)
@@ -39,26 +42,29 @@ object PushCommand extends AbstractCommand {
       result.compile.drain
     }
 
-  def toRecord(isJson: Boolean): Pipe[IO, String, LogRecord] =
+  def toRecords(isJson: Boolean): Pipe[IO, List[String], List[LogRecord]] =
     in =>
       if (isJson) {
-        in.evalMap(line => parseJson(line))
+        in.evalMap(lines => lines.traverse(parseJson))
       } else {
         val now       = Instant.now()
         val timestamp = Timestamp(now.getEpochSecond, now.getNano)
-        in.map(line => LogRecord(Some(timestamp), line))
+
+        in.map(lines => lines.map(line => LogRecord(Some(timestamp), line)))
       }
 
   def parseJson(content: String): IO[LogRecord] =
     IO.fromEither(parse(content).flatMap(_.as[LogRecord]))
 
-  def toPushRequest(collection: String): Pipe[IO, LogRecord, PushRequest] =
-    in => in.map(record => PushRequest(collection, Some(record)))
+  def toPushRequest(collection: String): Pipe[IO, List[LogRecord], PushRequest] =
+    in => in.map(records => PushRequest(collection, records))
 
-  def stdin(blocker: Blocker)(implicit CS: ContextShift[IO]): fs2.Stream[IO, String] =
+  def stdin(blocker: Blocker, chunkSize: Int)(implicit CS: ContextShift[IO]): fs2.Stream[IO, List[String]] =
     fs2.io
       .stdin[IO](10, blocker)
       .through(text.utf8Decode)
       .through(text.lines)
       .filter(_.nonEmpty)
+      .chunkN(chunkSize, allowFewer = true)
+      .map(_.toList)
 }

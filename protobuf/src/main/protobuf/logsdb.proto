@@ -13,7 +13,7 @@ service Storage {
 
 message PushRequest {
   string collection = 1;
-  LogRecord record = 2;
+  repeated LogRecord records = 2;
 }
 
 message LogRecord {
