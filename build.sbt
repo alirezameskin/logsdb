@@ -1,4 +1,6 @@
-Global / version := "0.1"
+import com.typesafe.sbt.packager.docker.DockerChmodType
+
+Global / version := "0.0.1"
 Global / scalaVersion := "2.13.3"
 
 val http4sVersion  = "0.21.6"
@@ -91,6 +93,20 @@ lazy val server =
         case _                      => MergeStrategy.first
       }
     )
+    .settings(
+      packageName in Docker := "logsdb",
+      dockerUsername := Some("alireza"),
+      dockerExposedPorts := Seq(9080, 8080),
+      defaultLinuxInstallLocation in Docker := "/opt/logsdb",
+      dockerExposedVolumes := Seq("/data"),
+      dockerEntrypoint := Seq("/opt/logsdb/bin/entrypoint.sh"),
+      dockerPackageMappings in Docker ++= List(
+        baseDirectory.value / "docker" / "docker-entrypoint.sh" -> "/opt/logsdb/bin/entrypoint.sh"
+      ),
+      dockerChmodType := DockerChmodType.UserGroupWriteExecute
+    )
+    .enablePlugins(JavaAppPackaging)
+    .enablePlugins(DockerPlugin)
 
 lazy val root = project
   .in(file("."))
