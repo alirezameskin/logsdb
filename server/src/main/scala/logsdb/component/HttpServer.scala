@@ -8,6 +8,7 @@ import logsdb.storage.RocksDB
 import org.http4s.server.{Router, Server}
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.implicits._
+import org.http4s.server.middleware._
 
 import scala.concurrent.ExecutionContext.global
 
@@ -23,10 +24,12 @@ object HttpServer {
     BlazeServerBuilder[IO](global)
       .bindHttp(settings.port, settings.host)
       .withHttpApp(
-        Router(
-          "/v1/collections" -> CollectionEndpoints(R).endpoints,
-          "/v1/logs"        -> LogsEndpoints(R).endpoints
-        ).orNotFound
+        CORS(
+          Router(
+            "/v1/collections" -> CollectionEndpoints(R).endpoints,
+            "/v1/logs"        -> LogsEndpoints(R).endpoints
+          ).orNotFound
+        )
       )
       .resource
       .map(r => new HttpServer(r, L))
