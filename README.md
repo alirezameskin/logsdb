@@ -4,7 +4,7 @@ An experimental Log database top of RocksDB
 Building
 
 ```shell script
-sbt assembly
+nix-shell --run "sbt assembly"
 ```
 
 Running Server
