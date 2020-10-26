@@ -30,6 +30,15 @@ class LogsEndpoints[F[_]: Sync](R: RocksDB[F]) extends Http4sDsl[F] {
 
   private def listEndpoint: HttpRoutes[F] = HttpRoutes.of[F] {
 
+    case GET -> Root / "tail" / collection :? LimitMatcher(limit) =>
+      R.last[RecordId, LogRecord](collection)
+        .take(limit.map(_.size).getOrElse(100L))
+        .compile
+        .toList
+        .map(_.reverse)
+        .map(_.asJson)
+        .flatMap(items => Ok(items))
+
     case GET -> Root / collection :? AfterMatcher(after) +& LimitMatcher(limit) =>
       R.startsWith[RecordId, LogRecord](collection, after)
         .take(limit.map(_.size).getOrElse(100L))

@@ -24,6 +24,8 @@ trait RocksDB[F[_]] {
 
   def startsWith[K, V](collection: String, prefix: K)(implicit KE: Encoder[K], KD: Decoder[K], V: Decoder[V]): fs2.Stream[F, V]
 
+  def last[K, V](collection: String)(implicit KD: Decoder[K], VD: Decoder[V]): fs2.Stream[F, V]
+
   def tail(collection: String, from: Option[Array[Byte]]): fs2.Stream[F, Array[Byte]]
 
   def transactionsSince(sequenceNumber: Long): fs2.Stream[F, TransactionLog]

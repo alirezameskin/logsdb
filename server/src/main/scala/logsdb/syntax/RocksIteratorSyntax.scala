@@ -40,4 +40,18 @@ final class RocksIteratorOps(val rocksIterator: RocksIterator) extends AnyVal {
         }
       }
     }
+
+  def valuesReverseStream[F[_]: Sync]: Stream[F, Array[Byte]] =
+    Stream.fromIterator {
+      new Iterator[Array[Byte]] {
+        override def hasNext: Boolean = rocksIterator.isValid
+
+        override def next(): Array[Byte] = {
+          val value = rocksIterator.value()
+          rocksIterator.prev()
+
+          value
+        }
+      }
+    }
 }

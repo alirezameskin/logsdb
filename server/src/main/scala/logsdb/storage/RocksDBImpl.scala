@@ -62,6 +62,16 @@ class RocksDBImpl[F[_]: Sync: ContextShift: Timer: RaiseThrowable](
     stream.map(v => VD.decode(v)).map(_.toOption).filter(_.isDefined).map(_.get)
   }
 
+  override def last[K, V](collection: String)(implicit KD: Decoder[K], VD: Decoder[V]): Stream[F, V] = {
+    val stream = for {
+      iterator <- Stream.resource(makeIterator(collection))
+      _ = iterator.seekToLast()
+      stream <- iterator.valuesReverseStream[F]
+    } yield stream
+
+    stream.map(v => VD.decode(v)).map(_.toOption).filter(_.isDefined).map(_.get)
+  }
+
   override def transactionsSince(sequenceNumber: Long): Stream[F, TransactionLog] = {
     val iterator = Resource.make(Sync[F].delay(db.getUpdatesSince(sequenceNumber)))(i => Sync[F].delay(i.close()))
 
