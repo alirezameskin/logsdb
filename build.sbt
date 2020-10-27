@@ -1,3 +1,4 @@
+import scala.sys.process._
 import com.typesafe.sbt.packager.docker.DockerChmodType
 
 Global / version := "0.0.1"
@@ -9,6 +10,8 @@ val circeVersion   = "0.12.3"
 val fansiVersion   = "0.2.7"
 val rocksDbVersion = "6.6.4"
 val catsVersion    = "2.0.0"
+
+val compileElm = taskKey[Unit]("compile elm")
 
 lazy val scalacSettings = Seq(
   scalacOptions ++= Seq(
@@ -104,6 +107,13 @@ lazy val server =
         baseDirectory.value / "docker" / "docker-entrypoint.sh" -> "/opt/logsdb/bin/entrypoint.sh"
       ),
       dockerChmodType := DockerChmodType.UserGroupWriteExecute
+    )
+    .settings(
+      compileElm := {
+        "make -C ui/" !
+      },
+      (compile in Compile) := (compile in Compile).dependsOn(compileElm).value,
+      Compile / unmanagedResourceDirectories += baseDirectory.value / "../ui/build/"
     )
     .enablePlugins(JavaAppPackaging)
     .enablePlugins(DockerPlugin)

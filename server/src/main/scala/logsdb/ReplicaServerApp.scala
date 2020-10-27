@@ -1,6 +1,6 @@
 package logsdb
 
-import cats.effect.{ContextShift, IO, Resource, Timer}
+import cats.effect.{Blocker, ContextShift, IO, Resource, Timer}
 import io.odin.Logger
 import logsdb.component.{GrpcServer, HttpServer, Replicator}
 import logsdb.settings.AppSettings
@@ -13,9 +13,10 @@ object ReplicaServerApp {
       primary <- Resource.liftF(
         IO.fromOption(settings.replication.primary)(new RuntimeException("There is not any primary configuration"))
       )
+      blocker    <- Blocker[IO]
       rocksDb    <- RocksDB.open[IO](settings.storage)
       grpc       <- GrpcServer.buildReplicaServer(rocksDb, settings.server.port)
-      http       <- HttpServer.build(settings.http, rocksDb)
+      http       <- HttpServer.build(settings.http, rocksDb, blocker)
       replicator <- Replicator.build[IO](rocksDb, settings, primary)
     } yield (grpc, http, replicator)
 
