@@ -19,6 +19,8 @@ in
   pkgs.mkShell {
     buildInputs = with pkgs; [
       openjdk11
-      sbt 
+      sbt
+      elmPackages.elm
+      gnumake
     ];
   }

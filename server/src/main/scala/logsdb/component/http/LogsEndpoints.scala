@@ -41,6 +41,7 @@ class LogsEndpoints[F[_]: Sync](R: RocksDB[F]) extends Http4sDsl[F] {
 
     case GET -> Root / collection :? AfterMatcher(after) +& LimitMatcher(limit) =>
       R.startsWith[RecordId, LogRecord](collection, after)
+        .filterNot(_.id.contains(after))
         .take(limit.map(_.size).getOrElse(100L))
         .compile
         .toList
