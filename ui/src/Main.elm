@@ -9,6 +9,7 @@ import Html.Keyed as Keyed
 import Html.Lazy
 import Http
 import Json.Decode exposing (Decoder, field, int, map2, map3, string)
+import Process
 import Task
 import Time exposing (..)
 
@@ -22,7 +23,8 @@ type alias Collection =
 
 
 type alias Model =
-    { baseUrl: String
+    { baseUrl : String
+    , lastRecordsLoaded : Bool
     , records : List LogRecord
     , loading : Bool
     , intervalSecs : Int
@@ -45,15 +47,16 @@ type Msg
 
 init : String -> ( Model, Cmd Msg )
 init baseUrl =
-    ( { baseUrl = baseUrl, records = [], loading = True, intervalSecs = 3, collections = [], collection = Maybe.Nothing }
+    ( { baseUrl = baseUrl, lastRecordsLoaded = False, records = [], loading = True, intervalSecs = 3, collections = [], collection = Maybe.Nothing }
     , Task.perform identity (Task.succeed FetchCollections)
     )
+
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         FetchCollections ->
-            ( model, fetchCollections model)
+            ( model, fetchCollections model )
 
         CollectionsReceived (Ok items) ->
             let
@@ -66,12 +69,16 @@ update msg model =
             ( newModel, fetchLastLogs newModel )
 
         CollectionsReceived (Err error) ->
-            ( model, Cmd.none )
+            let
+                _ =
+                    Debug.log "Error :" error
+            in
+            ( model, delay 5000 FetchCollections )
 
         ChangedCollection collection ->
             let
                 newModel =
-                    { model | records = [], collection = Just collection }
+                    { model | records = [], lastRecordsLoaded = False, collection = Just collection }
             in
             ( newModel, fetchLastLogs newModel )
 
@@ -79,10 +86,14 @@ update msg model =
             ( model, fetchLastLogs model )
 
         LastDataReceived (Ok rows) ->
-            ( { model | records = model.records ++ rows }, Cmd.none )
+            ( { model | lastRecordsLoaded = True, records = model.records ++ rows }, Cmd.none )
 
         LastDataReceived (Err error) ->
-            ( model, Cmd.none )
+            let
+                _ =
+                    Debug.log "Error fetching last records: " error
+            in
+            ( model, delay 5000 FetchLastRecords )
 
         FetchRecords ->
             let
@@ -92,11 +103,15 @@ update msg model =
                         |> List.head
                         |> Maybe.withDefault "0"
             in
-            ( model, fetchLogs model last )
+            if model.lastRecordsLoaded == True then
+                ( model, fetchLogs model last )
+
+            else
+                ( model, Cmd.none )
 
         DataReceived (Ok rows) ->
             if List.length rows > 0 then
-                ( { model | records = model.records ++ rows }, Task.perform identity (Task.succeed FetchRecords))
+                ( { model | records = model.records ++ rows }, Task.perform identity (Task.succeed FetchRecords) )
 
             else
                 ( { model | records = model.records ++ rows }, Cmd.none )
@@ -125,7 +140,9 @@ view : Model -> Html Msg
 view model =
     let
         lastN : Int -> List a -> List a
-        lastN n xs = List.drop (List.length xs - n) xs
+        lastN n xs =
+            List.drop (List.length xs - n) xs
+
         records =
             lastN 500 model.records
     in
@@ -161,7 +178,18 @@ main =
         , subscriptions = subscriptions
         }
 
--- Helper functions
+
+
+-- Helper functionsa
+
+
+delay : Float -> msg -> Cmd msg
+delay timeMs msg =
+    Process.sleep timeMs
+        |> Task.andThen (always <| Task.succeed msg)
+        |> Task.perform identity
+
+
 logRecordDecoder : Decoder LogRecord
 logRecordDecoder =
     map2 LogRecord
@@ -276,4 +304,3 @@ viewCollections : Model -> Html Msg
 viewCollections model =
     select [ onInput ChangedCollection ]
         (List.map (collectionOption model) model.collections)
-
