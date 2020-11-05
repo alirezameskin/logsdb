@@ -38,8 +38,9 @@ trait LogRecordInstances {
         .getOrElse("")
 
       val attributes = record.attributes.map(_.asJson.noSpaces).getOrElse("")
+      val labels     = record.labels.map(ls => s"${ls._1}=${ls._2}").mkString(",")
 
-      s"${time} ${record.message} ${attributes}${EOL}"
+      s"${time} ${record.message} ${labels} ${attributes}${EOL}"
     }
   }
 }

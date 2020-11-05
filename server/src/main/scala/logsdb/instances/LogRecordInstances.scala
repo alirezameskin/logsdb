@@ -23,6 +23,7 @@ trait LogRecordInstances {
       override def apply(r: LogRecord): Json = Json.obj(
         ("id", r.id.asJson),
         ("message", Json.fromString(r.message)),
+        ("labels", r.labels.asJson),
         ("attributes", r.attributes.asJson)
       )
     }

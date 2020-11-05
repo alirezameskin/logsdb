@@ -20,7 +20,8 @@ message LogRecord {
   google.protobuf.Timestamp timestamp = 1;
   string message = 2;
   RecordId id = 3;
-  google.protobuf.Struct attributes = 4;
+  map<string, string> labels = 4;
+  google.protobuf.Struct attributes = 5;
 }
 
 message RecordId {
