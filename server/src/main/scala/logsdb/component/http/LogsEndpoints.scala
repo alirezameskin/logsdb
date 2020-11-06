@@ -8,6 +8,7 @@ import org.http4s.dsl.Http4sDsl
 import io.circe.syntax._
 import logsdb.implicits._
 import logsdb.protos.{LogRecord, RecordId}
+import logsdb.query.QueryParser
 import org.http4s.circe._
 
 class LogsEndpoints[F[_]: Sync](R: RocksDB[F]) extends Http4sDsl[F] {
@@ -27,26 +28,41 @@ class LogsEndpoints[F[_]: Sync](R: RocksDB[F]) extends Http4sDsl[F] {
 
   object AfterMatcher extends QueryParamDecoderMatcher[RecordId]("after")
   object LimitMatcher extends OptionalQueryParamDecoderMatcher[Limit]("limit")
+  object QueryMatcher extends OptionalQueryParamDecoderMatcher[String]("query")
 
   private def listEndpoint: HttpRoutes[F] = HttpRoutes.of[F] {
 
-    case GET -> Root / "tail" / collection :? LimitMatcher(limit) =>
-      R.last[RecordId, LogRecord](collection)
-        .take(limit.map(_.size).getOrElse(100L))
-        .compile
-        .toList
-        .map(_.reverse)
-        .map(_.asJson)
-        .flatMap(items => Ok(items))
+    case GET -> Root / "tail" / collection :? LimitMatcher(limit) +& QueryMatcher(query) =>
+      QueryParser.parse(query.getOrElse("{}")) match {
+        case Left(error) =>
+          BadRequest(error)
 
-    case GET -> Root / collection :? AfterMatcher(after) +& LimitMatcher(limit) =>
-      R.startsWith[RecordId, LogRecord](collection, after)
-        .filterNot(_.id.contains(after))
-        .take(limit.map(_.size).getOrElse(100L))
-        .compile
-        .toList
-        .map(_.asJson)
-        .flatMap(items => Ok(items))
+        case Right(recordMatcher) =>
+          R.last[RecordId, LogRecord](collection)
+            .filter(recordMatcher.matches)
+            .take(limit.map(_.size).getOrElse(100L))
+            .compile
+            .toList
+            .map(_.reverse)
+            .map(_.asJson)
+            .flatMap(items => Ok(items))
+      }
+
+    case GET -> Root / collection :? AfterMatcher(after) +& LimitMatcher(limit) +& QueryMatcher(query) =>
+      QueryParser.parse(query.getOrElse("{}")) match {
+        case Left(error) =>
+          BadRequest(error)
+
+        case Right(recordMatcher) =>
+          R.startsWith[RecordId, LogRecord](collection, after)
+            .filterNot(_.id.contains(after))
+            .filter(recordMatcher.matches)
+            .take(limit.map(_.size).getOrElse(100L))
+            .compile
+            .toList
+            .map(_.asJson)
+            .flatMap(items => Ok(items))
+      }
   }
 
   def endpoints: HttpRoutes[F] =

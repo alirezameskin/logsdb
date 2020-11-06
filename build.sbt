@@ -4,12 +4,13 @@ import com.typesafe.sbt.packager.docker.DockerChmodType
 Global / version := "0.0.1"
 Global / scalaVersion := "2.13.3"
 
-val http4sVersion  = "0.21.6"
-val grpcVersion    = "1.31.0"
-val circeVersion   = "0.12.3"
-val fansiVersion   = "0.2.7"
-val rocksDbVersion = "6.6.4"
-val catsVersion    = "2.0.0"
+val http4sVersion      = "0.21.6"
+val grpcVersion        = "1.31.0"
+val circeVersion       = "0.12.3"
+val fansiVersion       = "0.2.7"
+val rocksDbVersion     = "6.6.4"
+val catsVersion        = "2.0.0"
+val logqlParserVersion = "0.0.1-SNAPSHOT"
 
 val compileElm = taskKey[Unit]("compile elm")
 
@@ -76,25 +77,27 @@ lazy val server =
       name := "server",
       assemblyJarName := "server.jar",
       libraryDependencies ++= List(
-        "io.grpc"              % "grpc-netty"           % grpcVersion,
-        "io.grpc"              % "grpc-services"        % grpcVersion,
-        "org.rocksdb"          % "rocksdbjni"           % rocksDbVersion,
-        "org.typelevel"        %% "cats-core"           % catsVersion,
-        "org.typelevel"        %% "cats-effect"         % "2.1.4",
-        "com.monovore"         %% "decline-effect"      % "1.0.0",
-        "io.circe"             %% "circe-config"        % "0.8.0",
-        "io.circe"             %% "circe-generic"       % "0.13.0",
-        "com.github.valskalla" %% "odin-core"           % "0.8.1",
-        "com.lihaoyi"          %% "fansi"               % fansiVersion,
-        "org.http4s"           %% "http4s-dsl"          % http4sVersion,
-        "org.http4s"           %% "http4s-circe"        % http4sVersion,
-        "org.http4s"           %% "http4s-blaze-server" % http4sVersion,
-        "org.http4s"           %% "http4s-blaze-client" % http4sVersion
+        "io.grpc"                  % "grpc-netty"           % grpcVersion,
+        "io.grpc"                  % "grpc-services"        % grpcVersion,
+        "org.rocksdb"              % "rocksdbjni"           % rocksDbVersion,
+        "org.typelevel"            %% "cats-core"           % catsVersion,
+        "org.typelevel"            %% "cats-effect"         % "2.1.4",
+        "com.monovore"             %% "decline-effect"      % "1.0.0",
+        "io.circe"                 %% "circe-config"        % "0.8.0",
+        "io.circe"                 %% "circe-generic"       % "0.13.0",
+        "com.github.valskalla"     %% "odin-core"           % "0.8.1",
+        "com.lihaoyi"              %% "fansi"               % fansiVersion,
+        "org.http4s"               %% "http4s-dsl"          % http4sVersion,
+        "org.http4s"               %% "http4s-circe"        % http4sVersion,
+        "org.http4s"               %% "http4s-blaze-server" % http4sVersion,
+        "org.http4s"               %% "http4s-blaze-client" % http4sVersion,
+        "com.github.alirezameskin" %% "logql-parser"        % logqlParserVersion
       ),
       assemblyMergeStrategy in assembly := {
         case "META-INF/MANIFEST.MF" => MergeStrategy.discard
         case _                      => MergeStrategy.first
-      }
+      },
+      resolvers += "logql-parser".at("https://maven.pkg.github.com/alirezameskin/logql-parser")
     )
     .settings(
       packageName in Docker := "logsdb",

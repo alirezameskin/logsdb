@@ -6,8 +6,10 @@ import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import fs2.Stream
 import io.grpc._
+import logsdb.error.InvalidQueryError
 import logsdb.implicits._
 import logsdb.protos._
+import logsdb.query.QueryParser
 import logsdb.storage.{Decoder, Encoder, RocksDB}
 
 class StorageService(R: RocksDB[IO], N: Ref[IO, Int])(implicit CS: ContextShift[IO], T: Timer[IO])
@@ -19,30 +21,38 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Int])(implicit CS: ContextShift[
     val from       = Option(request.from).getOrElse(0L)
     val limit      = Option(request.limit).getOrElse(100).toLong
     val collection = Option(request.collection).filter(_.nonEmpty).getOrElse(DEFAULT_COLLECTION)
+    val query      = Option(request.query).filter(_.nonEmpty).getOrElse("{}")
 
-    val matchRecord: LogRecord => Boolean = record =>
-      Option(request.query).filter(_.nonEmpty).forall(s => record.message.contains(s))
+    QueryParser.parse(query) match {
+      case Left(error) =>
+        fs2.Stream.raiseError[IO](InvalidQueryError(error))
 
-    R.startsWith[RecordId, LogRecord](collection, RecordId(from))
-      .takeWhile(r => to.forall(_ >= r.timestamp.map(_.seconds).getOrElse(0L)))
-      .filter(matchRecord)
-      .take(limit)
+      case Right(recordMatcher) =>
+        R.startsWith[RecordId, LogRecord](collection, RecordId(from))
+          .takeWhile(r => to.forall(_ >= r.timestamp.map(_.seconds).getOrElse(0L)))
+          .filter(recordMatcher.matches)
+          .take(limit)
+    }
   }
 
   override def tail(request: QueryParams, ctx: Metadata): fs2.Stream[IO, LogRecord] = {
     val from       = Option(request.from).filter(_ != 0).map(RecordId(_)).flatMap(f => implicitly[Encoder[RecordId]].encode(f).toOption)
     val decoder    = implicitly[Decoder[LogRecord]]
     val collection = Option(request.collection).filter(_.nonEmpty).getOrElse(DEFAULT_COLLECTION)
+    val query      = Option(request.query).filter(_.nonEmpty).getOrElse("{}")
 
-    val matchRecord: LogRecord => Boolean = record =>
-      Option(request.query).filter(_.nonEmpty).forall(s => record.message.contains(s))
+    QueryParser.parse(query) match {
+      case Left(error) =>
+        fs2.Stream.raiseError[IO](InvalidQueryError(error))
 
-    R.tail(collection, from)
-      .map(bytes => decoder.decode(bytes))
-      .map(_.toOption)
-      .filter(_.isDefined)
-      .map(_.get)
-      .filter(matchRecord)
+      case Right(recordMatcher) =>
+        R.tail(collection, from)
+          .map(bytes => decoder.decode(bytes))
+          .map(_.toOption)
+          .filter(_.isDefined)
+          .map(_.get)
+          .filter(recordMatcher.matches)
+    }
   }
 
   override def push(request: Stream[IO, PushRequest], ctx: Metadata): Stream[IO, PushResponse] =
