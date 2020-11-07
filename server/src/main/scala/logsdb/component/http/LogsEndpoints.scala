@@ -8,7 +8,7 @@ import org.http4s.dsl.Http4sDsl
 import io.circe.syntax._
 import logsdb.implicits._
 import logsdb.protos.{LogRecord, RecordId}
-import logsdb.query.QueryParser
+import logsdb.query.LogRecordMatcher
 import org.http4s.circe._
 
 class LogsEndpoints[F[_]: Sync](R: RocksDB[F]) extends Http4sDsl[F] {
@@ -33,7 +33,7 @@ class LogsEndpoints[F[_]: Sync](R: RocksDB[F]) extends Http4sDsl[F] {
   private def listEndpoint: HttpRoutes[F] = HttpRoutes.of[F] {
 
     case GET -> Root / "tail" / collection :? LimitMatcher(limit) +& QueryMatcher(query) =>
-      QueryParser.parse(query.getOrElse("{}")) match {
+      LogRecordMatcher.build(query.getOrElse("{}")) match {
         case Left(error) =>
           BadRequest(error)
 
@@ -49,7 +49,7 @@ class LogsEndpoints[F[_]: Sync](R: RocksDB[F]) extends Http4sDsl[F] {
       }
 
     case GET -> Root / collection :? AfterMatcher(after) +& LimitMatcher(limit) +& QueryMatcher(query) =>
-      QueryParser.parse(query.getOrElse("{}")) match {
+      LogRecordMatcher.build(query.getOrElse("{}")) match {
         case Left(error) =>
           BadRequest(error)
 

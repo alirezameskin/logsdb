@@ -9,7 +9,7 @@ import io.grpc._
 import logsdb.error.InvalidQueryError
 import logsdb.implicits._
 import logsdb.protos._
-import logsdb.query.QueryParser
+import logsdb.query.LogRecordMatcher
 import logsdb.storage.{Decoder, Encoder, RocksDB}
 
 class StorageService(R: RocksDB[IO], N: Ref[IO, Int])(implicit CS: ContextShift[IO], T: Timer[IO])
@@ -23,7 +23,7 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Int])(implicit CS: ContextShift[
     val collection = Option(request.collection).filter(_.nonEmpty).getOrElse(DEFAULT_COLLECTION)
     val query      = Option(request.query).filter(_.nonEmpty).getOrElse("{}")
 
-    QueryParser.parse(query) match {
+    LogRecordMatcher.build(query) match {
       case Left(error) =>
         fs2.Stream.raiseError[IO](InvalidQueryError(error))
 
@@ -41,7 +41,7 @@ class StorageService(R: RocksDB[IO], N: Ref[IO, Int])(implicit CS: ContextShift[
     val collection = Option(request.collection).filter(_.nonEmpty).getOrElse(DEFAULT_COLLECTION)
     val query      = Option(request.query).filter(_.nonEmpty).getOrElse("{}")
 
-    QueryParser.parse(query) match {
+    LogRecordMatcher.build(query) match {
       case Left(error) =>
         fs2.Stream.raiseError[IO](InvalidQueryError(error))
 
