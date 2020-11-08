@@ -9,6 +9,8 @@ package object settings {
   implicit val storageSettings: Decoder[StorageSettings]       = deriveDecoder
   implicit val replicationConfig: Decoder[ReplicationSettings] = deriveDecoder
   implicit val httpServerSettings: Decoder[HttpServerSettings] = deriveDecoder
+  implicit val nodeSettings: Decoder[NodeSettings]             = deriveDecoder
+  implicit val clusterConfig: Decoder[ClusterSettings]         = deriveDecoder
 
   implicit val levelConfig2: Decoder[Level] = (c: HCursor) =>
     c.value.as[String].map(_.toLowerCase).flatMap {

@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package logsdb.protos.cluster;
+
+service Clustering {
+  rpc ping(PingRequest) returns (PingResponse) {};
+}
+
+
+message PingRequest {
+  string server = 1;
+}
+
+message PingResponse {
+
+}

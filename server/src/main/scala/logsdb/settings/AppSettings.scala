@@ -7,5 +7,6 @@ final case class AppSettings(
   storage: StorageSettings,
   server: ServerSettings,
   http: HttpServerSettings,
-  replication: ReplicationSettings
+  replication: ReplicationSettings,
+  cluster: ClusterSettings
 )
