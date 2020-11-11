@@ -4,11 +4,14 @@ import cats.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, IO, Sync}
 import io.grpc.{Metadata, ServerServiceDefinition}
 import io.odin.Logger
-import logsdb.protos.cluster.{ClusteringFs2Grpc, PingRequest, PingResponse}
+import logsdb.protos.cluster.{ClusteringFs2Grpc, PaxosMessage, PaxosResponse, PingRequest, PingResponse}
 
 class ClusteringService[F[_]: Sync](logger: Logger[F]) extends ClusteringFs2Grpc[F, Metadata] {
   override def ping(request: PingRequest, ctx: Metadata): F[PingResponse] =
-    logger.info(s"Ping request from ${request}").map(_ => PingResponse())
+    logger.trace(s"Ping request from ${request}").map(_ => PingResponse())
+
+  override def paxos(request: PaxosMessage, ctx: Metadata): F[PaxosResponse] =
+    logger.trace(s"Paxos Message ${request}").map(_ => PaxosResponse())
 }
 
 object ClusteringService {

@@ -12,6 +12,7 @@ import Json.Decode exposing (Decoder, field, int, map2, map3, string)
 import Process
 import Task
 import Time exposing (..)
+import Url.Builder
 
 
 type alias LogRecord =
@@ -30,6 +31,7 @@ type alias Model =
     , intervalSecs : Int
     , collections : List String
     , collection : Maybe String
+    , query : Maybe String
     }
 
 
@@ -42,12 +44,13 @@ type Msg
     | DataReceived (Result Http.Error (List LogRecord))
     | ChangedInterval String
     | ChangedCollection String
+    | ChangedQuery String
     | ToggleLoading
 
 
 init : String -> ( Model, Cmd Msg )
 init baseUrl =
-    ( { baseUrl = baseUrl, lastRecordsLoaded = False, records = [], loading = True, intervalSecs = 3, collections = [], collection = Maybe.Nothing }
+    ( { baseUrl = baseUrl, query = Maybe.Nothing, lastRecordsLoaded = False, records = [], loading = True, intervalSecs = 3, collections = [], collection = Maybe.Nothing }
     , Task.perform identity (Task.succeed FetchCollections)
     )
 
@@ -79,6 +82,13 @@ update msg model =
             let
                 newModel =
                     { model | records = [], lastRecordsLoaded = False, collection = Just collection }
+            in
+            ( newModel, fetchLastLogs newModel )
+
+        ChangedQuery query ->
+            let
+                newModel =
+                    { model | records = [], lastRecordsLoaded = False, query = Just query }
             in
             ( newModel, fetchLastLogs newModel )
 
@@ -150,6 +160,7 @@ view model =
         [ nav [ class "navbar fixed-top navbar-light bg-light" ]
             [ viewButton model
             , viewInterval model
+            , viewQueryInput model
             , viewCollections model
             ]
         , div [ class "container-fluid" ]
@@ -215,27 +226,47 @@ fetchCollections model =
 
 fetchLastLogs : Model -> Cmd Msg
 fetchLastLogs model =
-    case model.collection of
-        Just collection ->
+    let
+        urlBuilder =
+            Url.Builder.crossOrigin model.baseUrl
+    in
+    case ( model.collection, model.query ) of
+        ( Just collection, Nothing ) ->
             Http.get
-                { url = model.baseUrl ++ "/v1/logs/tail/" ++ collection ++ "?limit=10"
+                { url = urlBuilder [ "v1", "logs", "tail", collection ] [ Url.Builder.int "limit" 10 ]
                 , expect = Http.expectJson LastDataReceived (Json.Decode.list logRecordDecoder)
                 }
 
-        Nothing ->
+        ( Just collection, Just query ) ->
+            Http.get
+                { url = urlBuilder [ "v1", "logs", "tail", collection ] [ Url.Builder.int "limit" 10, Url.Builder.string "query" query ]
+                , expect = Http.expectJson LastDataReceived (Json.Decode.list logRecordDecoder)
+                }
+
+        ( Nothing, _ ) ->
             Cmd.none
 
 
 fetchLogs : Model -> String -> Cmd Msg
 fetchLogs model id =
-    case model.collection of
-        Just collection ->
+    let
+        urlBuilder =
+            Url.Builder.crossOrigin model.baseUrl
+    in
+    case ( model.collection, model.query ) of
+        ( Just collection, Nothing ) ->
             Http.get
-                { url = model.baseUrl ++ "/v1/logs/" ++ collection ++ "?limit=100&after=" ++ id
+                { url = urlBuilder [ "v1", "logs", collection ] [ Url.Builder.int "limit" 100, Url.Builder.string "after" id ]
                 , expect = Http.expectJson DataReceived (Json.Decode.list logRecordDecoder)
                 }
 
-        Nothing ->
+        ( Just collection, Just query ) ->
+            Http.get
+                { url = urlBuilder [ "v1", "logs", collection ] [ Url.Builder.int "limit" 100, Url.Builder.string "after" id, Url.Builder.string "query" query ]
+                , expect = Http.expectJson DataReceived (Json.Decode.list logRecordDecoder)
+                }
+
+        ( Nothing, _ ) ->
             Cmd.none
 
 
@@ -304,3 +335,9 @@ viewCollections : Model -> Html Msg
 viewCollections model =
     select [ onInput ChangedCollection ]
         (List.map (collectionOption model) model.collections)
+
+
+viewQueryInput : Model -> Html Msg
+viewQueryInput model =
+    input [ onInput ChangedQuery ]
+        []
