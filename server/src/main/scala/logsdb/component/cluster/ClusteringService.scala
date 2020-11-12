@@ -4,17 +4,44 @@ import cats.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, IO, Sync}
 import io.grpc.{Metadata, ServerServiceDefinition}
 import io.odin.Logger
-import logsdb.protos.cluster.{ClusteringFs2Grpc, PaxosMessage, PaxosResponse, PingRequest, PingResponse}
+import logsdb.component.cluster.{paxos => p}
+import logsdb.protos.cluster.{
+  AcceptMessage,
+  AcceptedMessage,
+  ClusteringFs2Grpc,
+  PaxosMessage,
+  PaxosResponse,
+  PingRequest,
+  PingResponse,
+  PrepareMessage,
+  PromiseMessage
+}
 
-class ClusteringService[F[_]: Sync](logger: Logger[F]) extends ClusteringFs2Grpc[F, Metadata] {
+class ClusteringService[F[_]: Sync](listener: ClusterMessageListener[F], logger: Logger[F])
+    extends ClusteringFs2Grpc[F, Metadata] {
   override def ping(request: PingRequest, ctx: Metadata): F[PingResponse] =
     logger.trace(s"Ping request from ${request}").map(_ => PingResponse())
 
   override def paxos(request: PaxosMessage, ctx: Metadata): F[PaxosResponse] =
-    logger.trace(s"Paxos Message ${request}").map(_ => PaxosResponse())
+    toMsg(request) match {
+      case Some((from, message)) =>
+        listener.onMessage(p.Peer(from), message) *> Sync[F].pure(PaxosResponse())
+      case None =>
+        logger.trace(s"Invalid message received ${request}") *> Sync[F].pure(PaxosResponse())
+    }
+
+  private def toMsg(request: PaxosMessage): Option[(String, p.Message[Long, String])] =
+    request match {
+      case PrepareMessage(from, number, _) => Some((from, p.PrepareMessage(number)))
+      case PromiseMessage(from, number, prev, _) =>
+        Some((from, p.PromiseMessage(number, prev.map(a => p.AcceptedValue(a.number, a.value)))))
+      case AcceptMessage(from, number, value, _)   => Some((from, p.AcceptedMessage(number, value)))
+      case AcceptedMessage(from, number, value, _) => Some((from, p.AcceptedMessage(number, value)))
+      case _                                       => None
+    }
 }
 
 object ClusteringService {
-  def build[F[_]: ConcurrentEffect](L: Logger[F]): ServerServiceDefinition =
-    ClusteringFs2Grpc.bindService(new ClusteringService[F](L))
+  def build[F[_]: ConcurrentEffect](listener: ClusterMessageListener[F], logger: Logger[F]): ServerServiceDefinition =
+    ClusteringFs2Grpc.bindService(new ClusteringService[F](listener, logger))
 }

@@ -33,17 +33,21 @@ message AcceptedValue {
   string value = 2;
 }
 message PrepareMessage {
-  uint64 number = 1;
+  string nodeId = 1;
+  uint64 number = 2;
 }
 message PromiseMessage {
-  uint64 number = 1;
-  AcceptedValue prevAccepted = 2;
+  string nodeId = 1;
+  uint64 number = 2;
+  AcceptedValue prevAccepted = 3;
 }
 message AcceptMessage {
-  uint64 number = 1;
-  string value = 2;
+  string nodeId = 1;
+  uint64 number = 2;
+  string value = 3;
 }
 message AcceptedMessage {
-  uint64 number = 1;
-  string value = 2;
+  string nodeId = 1;
+  uint64 number = 2;
+  string value = 3;
 }

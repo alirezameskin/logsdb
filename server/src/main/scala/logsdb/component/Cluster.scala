@@ -6,10 +6,10 @@ import cats.Traverse
 import cats.effect.concurrent.Ref
 import cats.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, IO, Resource, Sync, Timer}
-import io.grpc.{ManagedChannelBuilder, Metadata, Server, ServerBuilder}
+import io.grpc.{ManagedChannelBuilder, Metadata, Server, ServerBuilder, ServerServiceDefinition}
 import io.odin.Logger
-import logsdb.component.cluster.paxos.ProposalId
-import logsdb.component.cluster.{ClusterStatus, ClusteringService, Node, PaxosMessenger}
+import logsdb.component.cluster.paxos.{Message, Peer, ProposalId}
+import logsdb.component.cluster.{ClusterMessageListener, ClusterStatus, ClusteringService, Node, PaxosMessenger}
 import logsdb.error.InvalidClusterNodeId
 import logsdb.protos.cluster.{ClusteringFs2Grpc, PingRequest}
 import logsdb.settings.{ClusterSettings, NodeSettings}
@@ -17,24 +17,28 @@ import org.lyranthe.fs2_grpc.java_runtime.syntax.ManagedChannelBuilderOps
 import org.lyranthe.fs2_grpc.java_runtime.syntax.all._
 
 import scala.concurrent.duration._
+import scala.util.Random
 
 class Cluster(
   nodeId: String,
-  grpc: Server,
   setting: NodeSettings,
   status: Ref[IO, ClusterStatus[IO]],
   members: List[Node[IO]],
   logger: Logger[IO]
-)(implicit val T: Timer[IO], CS: ContextShift[IO]) {
-  implicit val proposalId = new ProposalId[Int] {
-    override def next(c: Int): Int = c + 1
+)(implicit val T: Timer[IO], CS: ContextShift[IO])
+    extends ClusterMessageListener[IO] {
+  implicit val proposalId = new ProposalId[Long] {
+    override def next(c: Long): Long = c + 1
 
-    override def next: Int = 1;
+    override def next: Long = Random.nextInt(1000);
   }
 
   implicit val l         = logger
   val messenger          = new PaxosMessenger(members)
-  implicit val nextDelay = FiniteDuration(20, TimeUnit.SECONDS)
+  implicit val nextDelay = FiniteDuration(Random.nextInt(20) + 5, TimeUnit.SECONDS)
+  println(s"NExT DELAY $nextDelay")
+
+  var paxosNode = cluster.paxos.Node.apply[IO, Long, String](nodeId, 2, messenger)
 
   def pingMember(member: Node[IO], errorCount: Int = 0): IO[Unit] =
     for {
@@ -57,17 +61,23 @@ class Cluster(
     (status.copy(nodes = nodes), ())
   }
 
-  def runPaxos(): IO[Unit] =
-    for {
-      node <- cluster.paxos.Node.apply[IO, Int, String](nodeId, 2, messenger)
-      n    <- node.propose(nodeId).start
-    } yield ()
-
   def pingMembers(): IO[Unit] =
-    runPaxos() *> Traverse[List].traverse(members)(node => pingMember(node).start) *> IO.unit
+    Traverse[List].traverse(members)(node => pingMember(node).start) *> IO.unit
 
   def run: IO[Unit] =
-    logger.trace(s"Members ${members}") *> pingMembers()
+    for {
+      _ <- logger.trace(s"Members ${members}")
+      _ <- logger.trace(s"Proposing data ${nodeId}")
+      p <- paxosNode
+      f <- p.propose(nodeId).start
+      _ <- f.join
+    } yield ()
+
+  override def onMessage(from: Peer, message: Message[Long, String]): IO[Unit] =
+    for {
+      p <- paxosNode
+      _ <- p.receiveMessage(from, message)
+    } yield ()
 }
 
 object Cluster {
@@ -76,7 +86,6 @@ object Cluster {
   )(implicit T: Timer[IO], logger: Logger[IO], CS: ContextShift[IO], CE: ConcurrentEffect[IO]): Resource[IO, Cluster] = {
 
     val members: List[Node[IO]] = setting.nodes
-      .filterNot(_.id == setting.id)
       .map { setting =>
         val builder: ManagedChannelBuilder[_] = ManagedChannelBuilder
           .forAddress(setting.host, setting.port)
@@ -91,15 +100,17 @@ object Cluster {
     setting.nodes.find(n => n.id == setting.id) match {
       case None => Resource.liftF(CE.raiseError(InvalidClusterNodeId()))
       case Some(node) =>
+        val cluster           = new Cluster(node.id, node, Ref.unsafe(ClusterStatus(members)), members, logger)
+        val clusteringService = ClusteringService.build[IO](cluster, logger)
         val builder: ServerBuilder[_] =
           ServerBuilder
             .forPort(node.port)
-            .addService(ClusteringService.build[IO](logger))
+            .addService(clusteringService)
 
         builder
           .resource[IO]
           .evalMap(grpc => Sync[IO].pure(grpc.start()))
-          .map(grpc => new Cluster(node.id, grpc, node, Ref.unsafe(ClusterStatus(members)) /* TODO */, members, logger))
+          .map(grpc => cluster)
     }
   }
 }
