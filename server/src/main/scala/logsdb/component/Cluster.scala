@@ -4,12 +4,12 @@ import java.util.concurrent.TimeUnit
 
 import cats.Traverse
 import cats.effect.concurrent.Ref
-import cats.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, IO, Resource, Sync, Timer}
-import io.grpc.{ManagedChannelBuilder, Metadata, Server, ServerBuilder, ServerServiceDefinition}
+import cats.implicits._
+import io.grpc.{ManagedChannelBuilder, Metadata, ServerBuilder}
 import io.odin.Logger
-import logsdb.component.cluster.paxos.{Message, Peer, ProposalId}
-import logsdb.component.cluster.{ClusterMessageListener, ClusterStatus, ClusteringService, Node, PaxosMessenger}
+import logsdb.component.cluster.paxos.{Message, ProposalId}
+import logsdb.component.cluster._
 import logsdb.error.InvalidClusterNodeId
 import logsdb.protos.cluster.{ClusteringFs2Grpc, PingRequest}
 import logsdb.settings.{ClusterSettings, NodeSettings}
@@ -22,23 +22,14 @@ import scala.util.Random
 class Cluster(
   nodeId: String,
   setting: NodeSettings,
+  paxos: cluster.paxos.PaxosNode[IO, Long, String],
   status: Ref[IO, ClusterStatus[IO]],
   members: List[Node[IO]],
   logger: Logger[IO]
-)(implicit val T: Timer[IO], CS: ContextShift[IO])
-    extends ClusterMessageListener[IO] {
-  implicit val proposalId = new ProposalId[Long] {
-    override def next(c: Long): Long = c + 1
-
-    override def next: Long = Random.nextInt(1000);
-  }
+)(implicit val T: Timer[IO], CS: ContextShift[IO]) {
 
   implicit val l         = logger
-  val messenger          = new PaxosMessenger(members)
   implicit val nextDelay = FiniteDuration(Random.nextInt(20) + 5, TimeUnit.SECONDS)
-  println(s"NExT DELAY $nextDelay")
-
-  var paxosNode = cluster.paxos.Node.apply[IO, Long, String](nodeId, 2, messenger)
 
   def pingMember(member: Node[IO], errorCount: Int = 0): IO[Unit] =
     for {
@@ -66,17 +57,8 @@ class Cluster(
 
   def run: IO[Unit] =
     for {
-      _ <- logger.trace(s"Members ${members}")
-      _ <- logger.trace(s"Proposing data ${nodeId}")
-      p <- paxosNode
-      f <- p.propose(nodeId).start
-      _ <- f.join
-    } yield ()
-
-  override def onMessage(from: Peer, message: Message[Long, String]): IO[Unit] =
-    for {
-      p <- paxosNode
-      _ <- p.receiveMessage(from, message)
+      f <- paxos.propose(nodeId)
+      _ <- logger.trace(s"Final decision ${f}")
     } yield ()
 }
 
@@ -84,6 +66,12 @@ object Cluster {
   def build(
     setting: ClusterSettings
   )(implicit T: Timer[IO], logger: Logger[IO], CS: ContextShift[IO], CE: ConcurrentEffect[IO]): Resource[IO, Cluster] = {
+
+    implicit val proposalId = new ProposalId[Long] {
+      override def next(c: Long): Long = c + 1
+
+      override def next: Long = Random.nextInt(10);
+    }
 
     val members: List[Node[IO]] = setting.nodes
       .map { setting =>
@@ -97,11 +85,18 @@ object Cluster {
         Node[IO](setting.host, setting.port, setting.id, false, client)
       }
 
+    val messenger = new PaxosMessenger(members)
+
     setting.nodes.find(n => n.id == setting.id) match {
       case None => Resource.liftF(CE.raiseError(InvalidClusterNodeId()))
       case Some(node) =>
-        val cluster           = new Cluster(node.id, node, Ref.unsafe(ClusterStatus(members)), members, logger)
-        val clusteringService = ClusteringService.build[IO](cluster, logger)
+        val paxosNode = logsdb.component.cluster.paxos.PaxosNode
+          .apply[IO, Long, String](setting.id, (members.size / 2) + 1, messenger)
+          .unsafeRunSync()
+
+        val clusteringService = ClusteringService
+          .build[IO]((from: String, message: Message[Long, String]) => paxosNode.receiveMessage(from, message), logger)
+
         val builder: ServerBuilder[_] =
           ServerBuilder
             .forPort(node.port)
@@ -110,7 +105,7 @@ object Cluster {
         builder
           .resource[IO]
           .evalMap(grpc => Sync[IO].pure(grpc.start()))
-          .map(grpc => cluster)
+          .map(grpc => new Cluster(node.id, node, paxosNode, Ref.unsafe(ClusterStatus(members)), members, logger))
     }
   }
 }

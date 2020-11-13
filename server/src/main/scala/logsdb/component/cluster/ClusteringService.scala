@@ -1,21 +1,11 @@
 package logsdb.component.cluster
 
+import cats.effect.{ConcurrentEffect, Sync}
 import cats.implicits._
-import cats.effect.{ConcurrentEffect, ContextShift, IO, Sync}
 import io.grpc.{Metadata, ServerServiceDefinition}
 import io.odin.Logger
 import logsdb.component.cluster.{paxos => p}
-import logsdb.protos.cluster.{
-  AcceptMessage,
-  AcceptedMessage,
-  ClusteringFs2Grpc,
-  PaxosMessage,
-  PaxosResponse,
-  PingRequest,
-  PingResponse,
-  PrepareMessage,
-  PromiseMessage
-}
+import logsdb.protos.cluster._
 
 class ClusteringService[F[_]: Sync](listener: ClusterMessageListener[F], logger: Logger[F])
     extends ClusteringFs2Grpc[F, Metadata] {
@@ -25,7 +15,7 @@ class ClusteringService[F[_]: Sync](listener: ClusterMessageListener[F], logger:
   override def paxos(request: PaxosMessage, ctx: Metadata): F[PaxosResponse] =
     toMsg(request) match {
       case Some((from, message)) =>
-        listener.onMessage(p.Peer(from), message) *> Sync[F].pure(PaxosResponse())
+        listener.onMessage(from, message) *> Sync[F].pure(PaxosResponse())
       case None =>
         logger.trace(s"Invalid message received ${request}") *> Sync[F].pure(PaxosResponse())
     }
@@ -35,7 +25,7 @@ class ClusteringService[F[_]: Sync](listener: ClusterMessageListener[F], logger:
       case PrepareMessage(from, number, _) => Some((from, p.PrepareMessage(number)))
       case PromiseMessage(from, number, prev, _) =>
         Some((from, p.PromiseMessage(number, prev.map(a => p.AcceptedValue(a.number, a.value)))))
-      case AcceptMessage(from, number, value, _)   => Some((from, p.AcceptedMessage(number, value)))
+      case AcceptMessage(from, number, value, _)   => Some((from, p.AcceptMessage(number, value)))
       case AcceptedMessage(from, number, value, _) => Some((from, p.AcceptedMessage(number, value)))
       case _                                       => None
     }

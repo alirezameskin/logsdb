@@ -4,7 +4,7 @@ case class Proposer[I: Ordering: ProposalId, V](
   quorum: Int,
   value: Option[V] = None,
   number: Option[I] = None,
-  membersPromised: List[Peer] = List.empty,
+  membersPromised: List[String] = List.empty,
   highestAccepted: Option[AcceptedValue[I, V]] = None,
   chosen: Option[AcceptedValue[I, V]] = None
 ) {

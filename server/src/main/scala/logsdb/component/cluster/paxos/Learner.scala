@@ -18,8 +18,8 @@ case class LearnerDecided[I, V](quorum: Int, chosen: V) extends Learner[I, V] {
 
 case class LearnerLearning[I: Ordering, V](
   quorum: Int,
-  acceptors: Map[Peer, AcceptedValue[I, V]] = Map.empty[Peer, AcceptedValue[I, V]],
-  accepted: Map[I, Set[Peer]] = Map.empty[I, Set[Peer]]
+  acceptors: Map[String, AcceptedValue[I, V]] = Map.empty[String, AcceptedValue[I, V]],
+  accepted: Map[I, Set[String]] = Map.empty[I, Set[String]]
 ) extends Learner[I, V] {
   private val ord: Ordering[I] = implicitly[Ordering[I]]
 

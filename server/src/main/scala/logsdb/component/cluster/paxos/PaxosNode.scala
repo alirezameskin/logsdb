@@ -8,8 +8,8 @@ import io.odin.Logger
 
 import scala.concurrent.duration.FiniteDuration
 
-class Node[F[_]: Monad: Timer: ContextShift: Concurrent: Logger, I: Ordering: ProposalId, V](
-  val peer: Peer,
+class PaxosNode[F[_]: Monad: Timer: ContextShift: Concurrent: Logger, I: Ordering: ProposalId, V](
+  val peer: String,
   proposer: Ref[F, Proposer[I, V]],
   acceptor: Ref[F, Acceptor[I, V]],
   learner: Ref[F, Learner[I, V]],
@@ -42,7 +42,7 @@ class Node[F[_]: Monad: Timer: ContextShift: Concurrent: Logger, I: Ordering: Pr
         }
       }
 
-  def receiveMessage(from: Peer, msg: Message[I, V]): F[Unit] =
+  def receiveMessage(from: String, msg: Message[I, V]): F[Unit] =
     msg match {
       case PrepareMessage(number) =>
         for {
@@ -55,6 +55,7 @@ class Node[F[_]: Monad: Timer: ContextShift: Concurrent: Logger, I: Ordering: Pr
         for {
           _      <- Logger[F].info(s"${peer} Received ${msg} from ${from}")
           action <- proposer.modify(_.receive(PromiseCommand(from, msg)))
+          _      <- Logger[F].info(s"Do action ${action}")
           _      <- doAction(action)
         } yield ()
 
@@ -62,13 +63,15 @@ class Node[F[_]: Monad: Timer: ContextShift: Concurrent: Logger, I: Ordering: Pr
         for {
           _      <- Logger[F].info(s"${peer} Received ${msg} from ${from}")
           action <- acceptor.modify(_.receive(AcceptCommand(from, msg)))
+          _      <- Logger[F].info(s"Do action ${action}")
           _      <- doAction(action)
         } yield ()
 
       case msg: AcceptedMessage[I, V] =>
         for {
           _ <- Logger[F].info(s"${peer} Received ${msg} from ${from}")
-          l <- learner.getAndUpdate(_.receive(AcceptedCommand(from, msg)))
+          l <- learner.updateAndGet(_.receive(AcceptedCommand(from, msg)))
+          _ <- Logger[F].info(s"Finished ! ${l} ${l.value}")
           _ <- if (l.finished) chosen.complete(l.value.get)
           else Concurrent[F].pure(())
         } yield ()
@@ -93,17 +96,17 @@ class Node[F[_]: Monad: Timer: ContextShift: Concurrent: Logger, I: Ordering: Pr
 
 }
 
-object Node {
+object PaxosNode {
 
   def apply[F[_]: Concurrent: Timer: ContextShift: Logger, I: Ordering: ProposalId, V](
     id: String,
     quorumSize: Int,
     messenger: Messenger[F, I, V]
-  ): F[Node[F, I, V]] =
+  ): F[PaxosNode[F, I, V]] =
     for {
       proposer <- Ref.of[F, Proposer[I, V]](Proposer[I, V](quorumSize))
       acceptor <- Ref.of[F, Acceptor[I, V]](Acceptor[I, V]())
       learner  <- Ref.of[F, Learner[I, V]](LearnerLearning[I, V](quorumSize))
       chosen   <- Deferred[F, V]
-    } yield new Node[F, I, V](Peer(id), proposer, acceptor, learner, chosen, messenger)
+    } yield new PaxosNode[F, I, V](id, proposer, acceptor, learner, chosen, messenger)
 }
