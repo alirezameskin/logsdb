@@ -1,7 +1,5 @@
 package logsdb.component.cluster.paxos
 
-import logsdb.component.cluster.paxos
-
 case class Proposer[I: Ordering: ProposalId, V](
   quorum: Int,
   value: Option[V] = None,
