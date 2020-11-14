@@ -20,6 +20,9 @@ class PaxosMessenger(members: List[Node[IO]])(implicit CS: ContextShift[IO]) ext
           case PromiseMessage(number, prevAccepted) =>
             cluster.PromiseMessage(from, number, prevAccepted.map(d => cluster.AcceptedValue(d.number, d.value)))
 
+          case RejectMessage(number, prevAccepted) =>
+            cluster.RejectMessage(from, number, prevAccepted.map(d => cluster.AcceptedValue(d.number, d.value)))
+
           case AcceptMessage(number, value) =>
             cluster.AcceptMessage(from, number, value)
 
@@ -33,5 +36,5 @@ class PaxosMessenger(members: List[Node[IO]])(implicit CS: ContextShift[IO]) ext
     }
 
   override def broadcast(from: String, msg: Message[Long, String]): IO[Unit] =
-    Parallel.parTraverse(members)(n => unicast(from, n.id, msg)).start *> IO.unit
+    Parallel.parTraverse(members)(n => unicast(from, n.id, msg).attempt).start *> IO.unit
 }

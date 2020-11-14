@@ -70,7 +70,7 @@ object Cluster {
     implicit val proposalId = new ProposalId[Long] {
       override def next(c: Long): Long = c + 1
 
-      override def next: Long = Random.nextInt(10);
+      override def next: Long = 0
     }
 
     val members: List[Node[IO]] = setting.nodes

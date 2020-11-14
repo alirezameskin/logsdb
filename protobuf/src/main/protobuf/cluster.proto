@@ -22,6 +22,7 @@ message PaxosMessage {
     PromiseMessage promise = 2;
     AcceptMessage accept = 3;
     AcceptedMessage accepted = 4;
+    RejectMessage reject = 5;
   }
 }
 message PaxosResponse {
@@ -37,6 +38,11 @@ message PrepareMessage {
   uint64 number = 2;
 }
 message PromiseMessage {
+  string nodeId = 1;
+  uint64 number = 2;
+  AcceptedValue prevAccepted = 3;
+}
+message RejectMessage {
   string nodeId = 1;
   uint64 number = 2;
   AcceptedValue prevAccepted = 3;

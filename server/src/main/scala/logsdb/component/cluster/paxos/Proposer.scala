@@ -1,5 +1,7 @@
 package logsdb.component.cluster.paxos
 
+import logsdb.component.cluster.paxos
+
 case class Proposer[I: Ordering: ProposalId, V](
   quorum: Int,
   value: Option[V] = None,
@@ -72,5 +74,21 @@ case class Proposer[I: Ordering: ProposalId, V](
             Broadcast(AcceptorRole, AcceptMessage(number.get, chosen_.value))
           )
         }
+
+      case RejectCommand(_, RejectMessage(number, Some(accepted))) if ord.gteq(accepted.number, number) =>
+        val number_ = proposalId.next(accepted.number)
+        val state_ = this.copy(
+          number = Some(number_),
+          value = Some(accepted.value),
+          membersPromised = List.empty,
+          highestAccepted = None
+        )
+        val prepareMessage: PrepareMessage[I, V] = PrepareMessage(number_)
+        val action: Action[I, V]                 = Broadcast(AcceptorRole, prepareMessage)
+
+        (state_, action)
+
+      case RejectCommand(_, _) =>
+        (this, Action.empty)
     }
 }

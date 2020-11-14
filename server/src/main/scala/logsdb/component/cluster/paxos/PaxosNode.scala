@@ -59,6 +59,16 @@ class PaxosNode[F[_]: Monad: Timer: ContextShift: Concurrent: Logger, I: Orderin
           _      <- doAction(action)
         } yield ()
 
+      case msg: RejectMessage[I, V] =>
+        for {
+          _      <- Logger[F].info(s"${peer} Received ${msg} from ${from}")
+          action <- proposer.modify(_.receive(RejectCommand(from, msg)))
+          p      <- proposer.get
+          _      <- Logger[F].info(s"Do action ${action}")
+          _      <- doAction(action)
+
+        } yield ()
+
       case msg: AcceptMessage[I, V] =>
         for {
           _      <- Logger[F].info(s"${peer} Received ${msg} from ${from}")

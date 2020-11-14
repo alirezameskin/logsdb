@@ -20,8 +20,8 @@ case class Acceptor[I: Ordering, V](
           Unicast(from, PromiseMessage(number, highestAccepted))
         )
 
-      case PrepareCommand(_, _) =>
-        (this, Action.empty)
+      case PrepareCommand(from, number) =>
+        (this, Unicast(from, RejectMessage(number, highestAccepted)))
 
       case AcceptCommand(_, AcceptMessage(number, value)) if highestPrepareSeen.isEmpty =>
         val msg: AcceptedMessage[I, V] = AcceptedMessage(number, value)

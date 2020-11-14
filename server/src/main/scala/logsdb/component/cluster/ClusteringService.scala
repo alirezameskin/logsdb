@@ -22,12 +22,22 @@ class ClusteringService[F[_]: Sync](listener: ClusterMessageListener[F], logger:
 
   private def toMsg(request: PaxosMessage): Option[(String, p.Message[Long, String])] =
     request match {
-      case PrepareMessage(from, number, _) => Some((from, p.PrepareMessage(number)))
+      case PrepareMessage(from, number, _) =>
+        Some((from, p.PrepareMessage(number)))
+
       case PromiseMessage(from, number, prev, _) =>
         Some((from, p.PromiseMessage(number, prev.map(a => p.AcceptedValue(a.number, a.value)))))
-      case AcceptMessage(from, number, value, _)   => Some((from, p.AcceptMessage(number, value)))
-      case AcceptedMessage(from, number, value, _) => Some((from, p.AcceptedMessage(number, value)))
-      case _                                       => None
+
+      case AcceptMessage(from, number, value, _) =>
+        Some((from, p.AcceptMessage(number, value)))
+
+      case AcceptedMessage(from, number, value, _) =>
+        Some((from, p.AcceptedMessage(number, value)))
+
+      case RejectMessage(from, number, prev, _) =>
+        Some((from, p.RejectMessage(number, prev.map(a => p.AcceptedValue(a.number, a.value)))))
+
+      case _ => None
     }
 }
 
