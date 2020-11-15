@@ -9,6 +9,10 @@ object LeaderElectionProposal {
     override def next(c: LeaderElectionProposal): LeaderElectionProposal = c.copy(epoc = c.epoc + 1)
 
     override def next: LeaderElectionProposal = LeaderElectionProposal(0, 0)
+
+    override def clear(c: LeaderElectionProposal): LeaderElectionProposal = c.copy(view = c.view + 1)
+
+    override def view(c: LeaderElectionProposal): Long = c.view
   }
 
   implicit val ordering = new Ordering[LeaderElectionProposal] {

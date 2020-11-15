@@ -10,6 +10,8 @@ case class RejectMessage[I, V](number: I, prevAccepted: Option[AcceptedValue[I, 
 case class AcceptedValue[I, V](number: I, value: V)
 
 trait ProposalId[T] {
+  def clear(c: T): T
+  def view(c: T): Long
   def next(c: T): T
   def next: T
 }

@@ -21,13 +21,24 @@ class Cluster(setting: NodeSettings, paxos: PaxosNode[IO, LeaderElectionProposal
   CS: ContextShift[IO]
 ) {
 
-  implicit val nextDelay = FiniteDuration(Random.nextInt(20) + 5, TimeUnit.SECONDS)
+  implicit val nextDelay = FiniteDuration(Random.nextInt(5) + 2, TimeUnit.SECONDS)
+
+  def findLeader: IO[String] =
+    for {
+      _ <- paxos.clear()
+      f <- paxos.propose(setting.id)
+      _ <- logger.error(s"LEADER IS ${f}")
+    } yield f
+
+  def leaders: fs2.Stream[IO, String] =
+    for {
+      leader <- fs2.Stream.eval(findLeader)
+      _      <- if (leader == setting.id) fs2.Stream.sleep(30.seconds) else fs2.Stream.sleep(80.seconds)
+    } yield leader
 
   def run: IO[Unit] =
-    for {
-      f <- paxos.propose(setting.id)
-      _ <- logger.trace(s"Final decision ${f}")
-    } yield ()
+    leaders.repeat.compile.drain
+
 }
 
 object Cluster {

@@ -10,6 +10,7 @@ import scala.concurrent.duration.FiniteDuration
 
 class PaxosNode[F[_]: Monad: Timer: ContextShift: Concurrent: Logger, I: Ordering: ProposalId, V](
   val peer: String,
+  quorumSize: Int,
   proposer: Ref[F, Proposer[I, V]],
   acceptor: Ref[F, Acceptor[I, V]],
   learner: Ref[F, Learner[I, V]],
@@ -17,7 +18,18 @@ class PaxosNode[F[_]: Monad: Timer: ContextShift: Concurrent: Logger, I: Orderin
   messenger: Messenger[F, I, V]
 ) {
 
+  val proposalId = implicitly[ProposalId[I]]
+
   def listen: F[V] = chosen.get
+
+  def clear(): F[Unit] =
+    for {
+      p <- proposer.get
+      n = p.number.map(proposalId.clear)
+      _ <- proposer.getAndUpdate(p => p.copy(membersPromised = List.empty, chosen = None, number = n))
+      _ <- acceptor.set(Acceptor[I, V]())
+      _ <- learner.set(LearnerLearning[I, V](quorumSize))
+    } yield ()
 
   def propose(value: V)(implicit nextDelay: FiniteDuration): F[V] =
     Concurrent[F].race(doPropose(value, nextDelay), listen).map {
@@ -81,7 +93,6 @@ class PaxosNode[F[_]: Monad: Timer: ContextShift: Concurrent: Logger, I: Orderin
         for {
           _ <- Logger[F].info(s"${peer} Received ${msg} from ${from}")
           l <- learner.updateAndGet(_.receive(AcceptedCommand(from, msg)))
-          _ <- Logger[F].info(s"Finished ! ${l} ${l.value}")
           _ <- if (l.finished) chosen.complete(l.value.get)
           else Concurrent[F].pure(())
         } yield ()
@@ -118,5 +129,5 @@ object PaxosNode {
       acceptor <- Ref.of[F, Acceptor[I, V]](Acceptor[I, V]())
       learner  <- Ref.of[F, Learner[I, V]](LearnerLearning[I, V](quorumSize))
       chosen   <- Deferred[F, V]
-    } yield new PaxosNode[F, I, V](id, proposer, acceptor, learner, chosen, messenger)
+    } yield new PaxosNode[F, I, V](id, quorumSize, proposer, acceptor, learner, chosen, messenger)
 }

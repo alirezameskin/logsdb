@@ -47,6 +47,7 @@ case class Proposer[I: Ordering: ProposalId, V](
 
       case PromiseCommand(node, msg) =>
         val selectedAccepted = this.highestAccepted match {
+          case Some(hav) if proposalId.view(msg.number) > proposalId.view(hav.number) => None
           case Some(hav) =>
             msg.prevAccepted match {
               case Some(v) if ord.gt(hav.number, v.number)   => Some(hav)
