@@ -10,7 +10,7 @@ nix-shell --run "sbt assembly"
 Running Server
 
 ```shell script
-java -jar server/target/scala-2.13/server.jar --config sample-configs/primary-server.conf
+java -jar server/target/scala-2.13/server.jar --config sample-configs/server1.conf
 ``` 
 
 Using client to push logs :

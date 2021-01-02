@@ -4,7 +4,6 @@ import cats.effect.concurrent.{Ref, Semaphore}
 import cats.effect.{Concurrent, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 import logsdb.protos.Collection
-import logsdb.protos.replication.TransactionLog
 import logsdb.settings.StorageSettings
 import org.rocksdb._
 import org.{rocksdb => jrocks}
@@ -18,19 +17,7 @@ trait RocksDB[F[_]] {
 
   def put(collection: String, key: Array[Byte], value: Array[Byte]): F[Unit]
 
-  def get[K, V](collection: String, key: K)(implicit K: Encoder[K], V: Decoder[V]): F[Option[V]]
-
-  def put[K, V](collection: String, key: K, value: V)(implicit K: Encoder[K], V: Encoder[V]): F[Unit]
-
-  def startsWith[K, V](collection: String, prefix: K)(implicit KE: Encoder[K], KD: Decoder[K], V: Decoder[V]): fs2.Stream[F, V]
-
-  def last[K, V](collection: String)(implicit KD: Decoder[K], VD: Decoder[V]): fs2.Stream[F, V]
-
-  def tail(collection: String, from: Option[Array[Byte]]): fs2.Stream[F, Array[Byte]]
-
-  def transactionsSince(sequenceNumber: Long): fs2.Stream[F, TransactionLog]
-
-  def latestSequenceNumber: F[Long]
+  def startsWith(collection: String, prefix: Array[Byte]): fs2.Stream[F, (Array[Byte], Array[Byte])]
 
   def collections: F[Seq[Collection]]
 }
@@ -42,7 +29,6 @@ object RocksDB {
   def open[F[_]: ContextShift: Timer: Concurrent](settings: StorageSettings): Resource[F, RocksDB[F]] = {
     val options = new DBOptions()
       .setCreateIfMissing(true)
-      .setWalTtlSeconds(settings.walTtlSeconds)
 
     val columnFamilyOptions = new ColumnFamilyOptions()
       .useFixedLengthPrefixExtractor(8)

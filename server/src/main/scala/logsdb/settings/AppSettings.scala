@@ -4,8 +4,7 @@ import io.odin.Level
 
 final case class AppSettings(
   logLevel: Level,
+  cluster: ClusterSettings,
   storage: StorageSettings,
-  server: ServerSettings,
-  http: HttpServerSettings,
-  replication: ReplicationSettings
+  server: ServerSettings
 )

@@ -25,7 +25,7 @@ object TailCommand extends AbstractCommand {
         channel <- makeChannel(options.host, options.port)
         client = StorageFs2Grpc.stub[IO](channel, errorAdapter = ea)
         params = QueryParams(options.collection, 0L, 0, 10, query = options.query)
-        logs <- client.tail(params, new Metadata())
+        logs <- client.query(params, new Metadata()) //TODO change it
       } yield logs
 
       result

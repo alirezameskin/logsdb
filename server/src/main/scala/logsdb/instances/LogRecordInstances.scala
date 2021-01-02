@@ -4,7 +4,7 @@ import com.google.protobuf.struct.Struct
 import io.circe
 import io.circe.Json
 import io.circe.syntax._
-import logsdb.protos.{LogRecord, RecordId}
+import logsdb.protos.{LogRecord, PushRequest, RecordId}
 import logsdb.storage.Decoder.Result
 import logsdb.storage.{Decoder, Encoder}
 
@@ -16,6 +16,14 @@ trait LogRecordInstances {
 
   implicit val recordDecoder: Decoder[LogRecord] = new Decoder[LogRecord] {
     override def decode(bytes: Array[Byte]): Result[LogRecord] = LogRecord.validate(bytes).toEither
+  }
+
+  implicit val pushReqEncoder: Encoder[PushRequest] = new Encoder[PushRequest] {
+    override def encode(a: PushRequest): Either[Throwable, Array[Byte]] = Right(a.toByteArray)
+  }
+
+  implicit val pushReqDecoder: Decoder[PushRequest] = new Decoder[PushRequest] {
+    override def decode(bytes: Array[Byte]): Result[PushRequest] = PushRequest.validate(bytes).toEither
   }
 
   implicit def recordJsonEncoder(implicit RIE: circe.Encoder[RecordId], SE: circe.Encoder[Struct]): circe.Encoder[LogRecord] =

@@ -11,6 +11,7 @@ val fansiVersion       = "0.2.7"
 val rocksDbVersion     = "6.6.4"
 val catsVersion        = "2.0.0"
 val logqlParserVersion = "0.0.1-SNAPSHOT"
+val raft4sVersion      = "0.0.3"
 
 val compileElm = taskKey[Unit]("compile elm")
 
@@ -91,7 +92,10 @@ lazy val server =
         "org.http4s"               %% "http4s-circe"        % http4sVersion,
         "org.http4s"               %% "http4s-blaze-server" % http4sVersion,
         "org.http4s"               %% "http4s-blaze-client" % http4sVersion,
-        "com.github.alirezameskin" %% "logql-parser"        % logqlParserVersion
+        "com.github.alirezameskin" %% "logql-parser"        % logqlParserVersion,
+        "com.github.alirezameskin" %% "raft4s-effect"       % raft4sVersion,
+        "com.github.alirezameskin" %% "raft4s-grpc"         % raft4sVersion,
+        "com.github.alirezameskin" %% "raft4s-rocksdb"      % raft4sVersion
       ),
       assemblyMergeStrategy in assembly := {
         case "META-INF/MANIFEST.MF" => MergeStrategy.discard

@@ -5,10 +5,10 @@ import io.circe.generic.semiauto._
 import io.odin.Level
 
 package object settings {
-  implicit val serverSettings: Decoder[ServerSettings]         = deriveDecoder
-  implicit val storageSettings: Decoder[StorageSettings]       = deriveDecoder
-  implicit val replicationConfig: Decoder[ReplicationSettings] = deriveDecoder
-  implicit val httpServerSettings: Decoder[HttpServerSettings] = deriveDecoder
+  implicit val address: Decoder[Address]                 = deriveDecoder
+  implicit val serverSettings: Decoder[ServerSettings]   = deriveDecoder
+  implicit val storageSettings: Decoder[StorageSettings] = deriveDecoder
+  implicit val clusterSettings: Decoder[ClusterSettings] = deriveDecoder
 
   implicit val levelConfig2: Decoder[Level] = (c: HCursor) =>
     c.value.as[String].map(_.toLowerCase).flatMap {
